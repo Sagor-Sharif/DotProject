@@ -1,0 +1,728 @@
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- NAVBAR -->
+<nav>
+  <div class="nav-logo" onclick="showPage('home')">
+    <div class="logo-dot"></div>
+    Dot<span>Project</span>
+  </div>
+  <ul>
+    <li><a onclick="showPage('home')">Home</a></li>
+    <li><a onclick="showPage('shop')">Shop</a></li>
+    <li><a onclick="scrollToAbout()">About</a></li>
+  </ul>
+  <div class="nav-actions">
+    <button class="nav-cart" onclick="toggleCart()">
+      🛒 Cart <span class="cart-badge" id="cart-count">0</span>
+    </button>
+    <button class="btn-nav-signin" onclick="openModal('modal-signin')">Sign In</button>
+    <button class="account-chip" id="account-chip" onclick="openAccountModal()">
+      <span class="account-avatar" id="nav-account-photo"></span>
+      <span class="account-name" id="nav-account-name"></span>
+    </button>
+  </div>
+</nav>
+
+<!-- CART OVERLAY -->
+<div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
+
+<!-- CART DRAWER -->
+<div class="cart-drawer" id="cart-drawer">
+  <div class="cart-header">
+    <h3>Shopping Cart</h3>
+    <button class="modal-close" onclick="toggleCart()">✕</button>
+  </div>
+  <div class="cart-body" id="cart-body">
+    <div class="cart-empty">
+      <div class="empty-icon">🛒</div>
+      <p>Your cart is empty</p>
+    </div>
+  </div>
+  <div class="cart-footer">
+    <div class="cart-total">
+      <h4>Total</h4>
+      <span id="cart-total-price">$0.00</span>
+    </div>
+    <button class="btn-primary btn-full" onclick="goToCheckout()">Proceed to Checkout →</button>
+  </div>
+</div>
+
+<!-- ==============================
+     MODALS
+============================== -->
+<!-- SIGN IN MODAL -->
+<div class="modal-page" id="modal-signin">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-signin')">✕</button>
+    <h2>Welcome back</h2>
+    <p class="subtitle">Sign in to your DotProject account</p>
+    <div class="form-group">
+      <label>Email address</label>
+      <input type="email" placeholder="you@example.com" id="signin-email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" placeholder="••••••••" id="signin-password">
+    </div>
+    <button class="btn-primary btn-full" onclick="handleSignin()">Sign In</button>
+    <div class="form-divider"><span>or</span></div>
+    <button class="btn-outline-dark btn-full" style="margin-bottom:1rem" onclick="openModal('modal-signup');closeModal('modal-signin')">Create an account</button>
+    <p style="text-align:center;font-size:0.85rem;color:var(--text-muted)">
+      Forgot password? <a class="form-link" onclick="openResetPassword()">Reset here</a>
+    </p>
+  </div>
+</div>
+
+<!-- SIGN UP MODAL -->
+<div class="modal-page" id="modal-signup">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-signup')">✕</button>
+    <h2>Create account</h2>
+    <p class="subtitle">Join DotProject and start ordering custom 3D prints</p>
+    <div class="form-row">
+      <div class="form-group">
+        <label>First name</label>
+        <input type="text" placeholder="Rafiq" id="signup-first-name">
+      </div>
+      <div class="form-group">
+        <label>Last name</label>
+        <input type="text" placeholder="Ahmed" id="signup-last-name">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Email address</label>
+      <input type="email" placeholder="you@example.com" id="signup-email">
+    </div>
+    <div class="form-group">
+      <label>Phone number</label>
+      <input type="tel" placeholder="+880 01...">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" placeholder="Min 8 characters" id="signup-password">
+    </div>
+    <div class="form-check">
+      <input type="checkbox" id="terms">
+      <label for="terms">I agree to the <a class="form-link">Terms of Service</a> and <a class="form-link">Privacy Policy</a></label>
+    </div>
+    <button class="btn-primary btn-full" onclick="handleSignup()">Create Account</button>
+    <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-top:1rem">
+      Already have an account? <a class="form-link" onclick="openModal('modal-signin');closeModal('modal-signup')">Sign in</a>
+    </p>
+  </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="modal-page" id="modal-reset">
+  <div class="modal-box">
+    <button class="modal-close" onclick="closeModal('modal-reset')">X</button>
+    <h2>Reset password</h2>
+    <p class="subtitle">Enter your Gmail address and confirm the code sent to it.</p>
+    <div class="reset-step active" id="reset-step-email">
+      <div class="form-group">
+        <label>Gmail address</label>
+        <input type="email" placeholder="yourname@gmail.com" id="reset-email">
+      </div>
+      <button class="btn-primary btn-full" onclick="sendResetCode()">Send Code</button>
+    </div>
+    <div class="reset-step" id="reset-step-code">
+      <div class="form-group">
+        <label>Reset code</label>
+        <input type="text" placeholder="6 digit code" id="reset-code-input">
+      </div>
+      <div class="form-group">
+        <label>New password</label>
+        <input type="password" placeholder="New password" id="reset-new-password">
+      </div>
+      <button class="btn-primary btn-full" onclick="confirmResetCode()">Update Password</button>
+      <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:1rem">Demo code: <strong id="reset-demo-code"></strong></p>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMER ACCOUNT MODAL -->
+<div class="modal-page" id="modal-account">
+  <div class="modal-box wide">
+    <button class="modal-close" onclick="closeModal('modal-account')">X</button>
+    <h2>My account</h2>
+    <p class="subtitle" id="account-subtitle">Manage your DotProject account</p>
+    <div class="account-layout">
+      <div class="account-menu">
+        <button type="button" class="active" data-account-tab="profile" onclick="showAccountTab('profile', this)">Profile</button>
+        <button type="button" data-account-tab="orders" onclick="showAccountTab('orders', this)">My Order</button>
+        <button type="button" data-account-tab="shipping" onclick="showAccountTab('shipping', this)">Shipping Address</button>
+        <button type="button" data-account-tab="cart" onclick="showAccountTab('cart', this)">Product Cart</button>
+        <button type="button" class="account-logout" onclick="handleLogout()">Log Out</button>
+      </div>
+      <div class="account-panel" id="account-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT DETAIL MODAL -->
+<div class="modal-page" id="modal-product">
+  <div class="modal-box wide">
+    <button class="modal-close" onclick="closeModal('modal-product')">✕</button>
+    <div class="product-detail-grid" style="padding-top:0;min-height:auto">
+      <div class="product-gallery">
+        <div class="product-gallery-main" id="modal-product-img"></div>
+        <div class="product-thumbs" id="modal-product-thumbs"></div>
+      </div>
+      <div class="product-detail-info" style="padding:0">
+        <div class="det-category" id="modal-product-cat"></div>
+        <h1 style="font-size:1.8rem" id="modal-product-name"></h1>
+        <div class="stars">★★★★★ <span style="color:var(--text-muted);font-size:0.85rem">(24 reviews)</span></div>
+        <div class="product-detail-price" id="modal-product-price"></div>
+        <p class="det-desc" id="modal-product-desc"></p>
+        <div class="det-stock" id="modal-product-stock"></div>
+        <div class="qty-selector">
+          <button class="qty-btn" onclick="changeQty(-1)">−</button>
+          <input class="qty-input" type="number" id="modal-qty" value="1" min="1" max="99">
+          <button class="qty-btn" onclick="changeQty(1)">+</button>
+        </div>
+        <div class="det-actions">
+          <button class="btn-primary" onclick="addToCartFromModal()">Add to Cart</button>
+          <button class="btn-outline-dark" onclick="addToCartFromModal();goToCheckout();closeModal('modal-product')">Buy Now</button>
+        </div>
+        <div class="det-specs">
+          <div class="det-spec-row"><span>Material</span><span>PLA+ / PETG</span></div>
+          <div class="det-spec-row"><span>Print time</span><span>2–4 hours</span></div>
+          <div class="det-spec-row"><span>Delivery</span><span>3–7 business days</span></div>
+          <div class="det-spec-row"><span>Colors available</span><span>12 options</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT PRODUCT MODAL -->
+<div class="modal-page" id="modal-edit-product">
+  <div class="modal-box wide">
+    <button class="modal-close" onclick="closeModal('modal-edit-product')">X</button>
+    <h2>Edit product</h2>
+    <p class="subtitle">Update photo, title, price, description, stock, and listing status.</p>
+    <input type="hidden" id="edit-product-id">
+    <div class="form-row">
+      <div class="form-group"><label>Product Title</label><input type="text" id="edit-name"></div>
+      <div class="form-group"><label>Price (USD)</label><input type="number" id="edit-price" min="0" step="0.01"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label>
+        <select id="edit-cat">
+          <option>Keychains & Rings</option>
+          <option>Home Decor</option>
+          <option>Smart Devices</option>
+          <option>Custom Order</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Stock</label><input type="number" id="edit-stock" min="0"></div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea rows="4" id="edit-desc"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Photo URL(s)</label><input type="text" id="edit-photo" placeholder="https://photo-1..., https://photo-2..."></div>
+      <div class="form-group"><label>Upload Photo</label><input type="file" id="edit-photo-file" accept="image/*" onchange="readProductPhoto(this,'edit-photo')"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-check"><input type="checkbox" id="edit-is-new"><label for="edit-is-new">Show as New Arrival</label></div>
+      <div class="form-check"><input type="checkbox" id="edit-is-top"><label for="edit-is-top">Show as Top Product</label></div>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="edit-status"><option>Active</option><option>Draft</option><option>Out of Stock</option></select>
+    </div>
+    <div class="edit-actions">
+      <button class="btn-outline-dark" onclick="closeModal('modal-edit-product')">Cancel</button>
+      <button class="btn-primary" onclick="saveProductEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================
+     PAGE: HOME
+============================== -->
+<div class="page active" id="page-home">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-badge">Bangladesh's #1 3D Print Shop</div>
+      <h1>We <em>Print</em> What You <em>Imagine</em></h1>
+      <p class="hero-desc">Custom 3D-printed products — from personalised keyrings to fully automatic smart devices. Designed in Dhaka, delivered to your door.</p>
+      <div class="hero-actions">
+        <button class="btn-primary" onclick="scrollToShop()">Shop Now →</button>
+        <button class="btn-secondary" onclick="scrollToAbout()">Our Story</button>
+      </div>
+      <form class="hero-search" onsubmit="submitHomeSearch(event)">
+        <input type="search" id="home-product-search" placeholder="Search keyrings, feeders, decor..." autocomplete="off">
+        <button class="btn-primary" type="submit">Search</button>
+      </form>
+      <div class="hero-search-hints">
+        <button type="button" onclick="searchFromHome('Keychains & Rings')">Keyrings</button>
+        <button type="button" onclick="searchFromHome('Smart Devices')">Smart devices</button>
+        <button type="button" onclick="searchFromHome('Home Decor')">Home decor</button>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-item"><h4>500+</h4><p>Products Sold</p></div>
+        <div class="stat-item"><h4>150+</h4><p>Happy Clients</p></div>
+        <div class="stat-item"><h4>3D</h4><p>Print Experts</p></div>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-card featured">
+        <div class="hero-card-img">🐱<span class="price-tag">$49</span></div>
+        <div class="hero-card-info"><h4>Auto Cat Feeder</h4><p>Smart 3D-printed body + auto mechanism</p></div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-card-img" style="height:120px">🔑<span class="price-tag">$8</span></div>
+        <div class="hero-card-info"><h4>Custom Keyring</h4><p>Your name or logo</p></div>
+      </div>
+      <div class="hero-card">
+        <div class="hero-card-img" style="height:120px">🐠<span class="price-tag">$35</span></div>
+        <div class="hero-card-info"><h4>Fish Auto Feeder</h4><p>Aquarium smart system</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section class="section bg-dark" id="section-shop">
+    <div class="section-header light">
+      <div class="section-badge on-dark">Browse</div>
+      <h2>Product Categories</h2>
+      <p>From tiny desktop decors to large smart systems — all printed with precision</p>
+    </div>
+    <div class="categories-grid">
+      <div class="cat-card" onclick="scrollToShop()"><div class="cat-icon">🔑</div><div class="cat-name">Keychains & Rings</div><div class="cat-count">12 products</div></div>
+      <div class="cat-card" onclick="scrollToShop()"><div class="cat-icon">🏠</div><div class="cat-name">Home Decor</div><div class="cat-count">8 products</div></div>
+      <div class="cat-card" onclick="scrollToShop()"><div class="cat-icon">🤖</div><div class="cat-name">Smart Devices</div><div class="cat-count">5 products</div></div>
+      <div class="cat-card" onclick="scrollToShop()"><div class="cat-icon">🎨</div><div class="cat-name">Custom Orders</div><div class="cat-count">Unlimited</div></div>
+    </div>
+  </section>
+
+  <!-- NEW ARRIVALS -->
+  <section class="section bg-white" id="new-arrivals">
+    <div class="section-header">
+      <div class="section-badge" style="background:rgba(72,209,204,0.12);color:var(--turquoise-xdark)">New</div>
+      <h2>New Arrivals</h2>
+      <p>Fresh off the printer — the latest additions to our collection</p>
+    </div>
+    <div class="products-grid" id="new-products-grid"></div>
+  </section>
+
+  <!-- TOP PRODUCTS -->
+  <section class="section bg-smoke" id="top-products">
+    <div class="section-header">
+      <div class="section-badge" style="background:rgba(59,89,152,0.1);color:var(--queen-blue)">Bestsellers</div>
+      <h2>Top Products</h2>
+      <p>Our most loved and highly rated 3D printed creations</p>
+    </div>
+    <div class="products-grid" id="top-products-grid"></div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section bg-white">
+    <div class="features-grid">
+      <div class="feature-card"><div class="feature-icon">🖨️</div><h4>Precision Printing</h4><p>Layer-by-layer accuracy with 0.2mm resolution for perfect results every time.</p></div>
+      <div class="feature-card"><div class="feature-icon">🎨</div><h4>Custom Colors</h4><p>Choose from 20+ filament colors. Your product, your palette.</p></div>
+      <div class="feature-card"><div class="feature-icon">🚚</div><h4>Fast Delivery</h4><p>Dhaka same-day, nationwide 3–7 business days. Order tracking included.</p></div>
+      <div class="feature-card"><div class="feature-icon">🔄</div><h4>Revisions Included</h4><p>Not satisfied? We reprint or refund. Your happiness is our guarantee.</p></div>
+    </div>
+  </section>
+
+  <!-- ABOUT -->
+  <section class="section bg-smoke" id="section-about">
+    <div class="about-grid">
+      <div class="about-visual">🖨️</div>
+      <div class="about-text">
+        <div class="section-badge" style="background:rgba(72,209,204,0.12);color:var(--turquoise-xdark);display:inline-block;margin-bottom:1rem">About Us</div>
+        <h2>We Build <em>Anything</em> in 3D</h2>
+        <p>DotProject was born from a passion for turning digital ideas into physical reality. Based in Dhaka, we operate modern FDM and resin 3D printers to manufacture unique, functional, and beautiful products.</p>
+        <p>Whether it's a personalized keychain, a decorative shelf piece, or a full smart device enclosure — we design, print, and ship it straight to you.</p>
+        <ul class="about-list">
+          <li>Premium PLA+, PETG & resin materials</li>
+          <li>Free design consultation for custom orders</li>
+          <li>CAD modelling service available</li>
+          <li>Bulk & B2B orders welcome</li>
+          <li>Based in Dhaka, ship nationwide</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- NEWSLETTER -->
+  <div class="newsletter-section">
+    <h2>Get Early Access to New Drops</h2>
+    <p>Subscribe and be the first to know about new products and exclusive deals.</p>
+    <div class="newsletter-form">
+      <input type="email" placeholder="Your email address">
+      <button class="btn-primary" onclick="showToast('🎉 You\'re subscribed!')">Subscribe</button>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="nav-logo">
+          <div class="logo-dot"></div>
+          Dot<span style="color:var(--turquoise)">Project</span>
+        </div>
+        <p>We build and print 3D products for individuals, businesses, and makers across Bangladesh. Quality you can hold in your hands.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Shop</h5>
+        <ul>
+          <li><a onclick="openShopCategory('')">All Products</a></li>
+          <li><a onclick="openShopCategory('Keychains & Rings')">Keychains</a></li>
+          <li><a onclick="openShopCategory('Smart Devices')">Smart Devices</a></li>
+          <li><a onclick="openShopCategory('Custom Order')">Custom Order</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a onclick="scrollToAbout()">About Us</a></li>
+          <li><a onclick="openInfoPage('blog')">Blog</a></li>
+          <li><a onclick="openInfoPage('careers')">Careers</a></li>
+          <li><a href="https://github.com/Sagor-Sharif" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a onclick="openInfoPage('contact')">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Support</h5>
+        <ul>
+          <li><a onclick="openInfoPage('faq')">FAQ</a></li>
+          <li><a onclick="openInfoPage('shipping')">Shipping Policy</a></li>
+          <li><a onclick="openInfoPage('returns')">Returns</a></li>
+          <li><a onclick="openInfoPage('track')">Track Order</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 DotProject. All rights reserved. Made with ❤️ in Dhaka.</p>
+      <p style="color:var(--taupe)">Privacy · Terms · Cookies</p>
+    </div>
+  </footer>
+</div>
+
+<!-- ==============================
+     PAGE: SHOP
+============================== -->
+<div class="page" id="page-shop">
+  <div class="shop-page-header">
+    <div>
+      <div class="section-badge on-dark">Shop</div>
+      <h1>All Products</h1>
+      <p>Browse every DotProject product in one place, from custom keyrings to smart printed devices.</p>
+    </div>
+    <button class="btn-secondary" onclick="showPage('home')">Back Home</button>
+  </div>
+  <div class="shop-tools">
+    <input type="text" id="shop-search" placeholder="Search products..." oninput="renderShopProducts()">
+    <select id="shop-category" onchange="renderShopProducts()">
+      <option value="">All categories</option>
+      <option>Keychains & Rings</option>
+      <option>Home Decor</option>
+      <option>Smart Devices</option>
+      <option>Custom Order</option>
+    </select>
+  </div>
+  <div class="shop-products-wrap">
+    <div class="products-grid" id="shop-products-grid"></div>
+  </div>
+</div>
+
+<!-- ==============================
+     PAGE: INFO
+============================== -->
+<div class="page" id="page-info">
+  <div class="info-page-header">
+    <div>
+      <div class="section-badge on-dark" id="info-badge">Info</div>
+      <h1 id="info-title">DotProject Info</h1>
+      <p id="info-subtitle">Helpful details for customers.</p>
+    </div>
+    <button class="btn-secondary" onclick="showPage('home')">Back Home</button>
+  </div>
+  <div class="info-content" id="info-content"></div>
+</div>
+
+<!-- ==============================
+     PAGE: CHECKOUT
+============================== -->
+<div class="page" id="page-checkout">
+  <div style="background:white;padding:1.5rem 5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;margin-top:64px">
+    <div class="checkout-steps">
+      <div class="step done" id="step1"><div class="step-num">✓</div> Cart</div>
+      <div class="step-line"></div>
+      <div class="step active" id="step2"><div class="step-num">2</div> Details</div>
+      <div class="step-line"></div>
+      <div class="step" id="step3"><div class="step-num">3</div> Payment</div>
+      <div class="step-line"></div>
+      <div class="step" id="step4"><div class="step-num">4</div> Confirm</div>
+    </div>
+    <button onclick="showPage('home')" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-family:'DM Sans',sans-serif;display:flex;align-items:center;gap:6px">← Continue Shopping</button>
+  </div>
+
+  <div class="checkout-layout">
+    <div>
+      <!-- CONTACT -->
+      <div class="checkout-card checkout-detail-card" id="checkout-step-details">
+        <h3>Contact Information</h3>
+        <div class="form-group"><label>Full Name</label><input type="text" placeholder="Your full name"></div>
+        <div class="form-row">
+          <div class="form-group"><label>Email</label><input type="email" placeholder="you@email.com"></div>
+          <div class="form-group"><label>Phone</label><input type="tel" placeholder="+880 01..."></div>
+        </div>
+      </div>
+
+      <!-- SHIPPING -->
+      <div class="checkout-card checkout-detail-card">
+        <h3>Shipping Address</h3>
+        <div class="form-group"><label>Street Address</label><input type="text" placeholder="House no, Road, Area"></div>
+        <div class="form-row">
+          <div class="form-group"><label>City</label><input type="text" placeholder="Dhaka"></div>
+          <div class="form-group"><label>District</label><input type="text" placeholder="Dhaka"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Postal Code</label><input type="text" placeholder="1212"></div>
+          <div class="form-group"><label>Country</label><select><option>Bangladesh</option></select></div>
+        </div>
+        <div class="form-group"><label>Delivery Note (optional)</label><textarea placeholder="Any delivery instructions..."></textarea></div>
+      </div>
+
+      <!-- PAYMENT -->
+      <div class="checkout-card hidden" id="checkout-step-payment">
+        <h3>Payment Method</h3>
+        <div class="payment-method">
+          <div class="pay-option selected" data-payment="card" onclick="selectPay(this)">💳 Card</div>
+          <div class="pay-option" data-payment="bkash" onclick="selectPay(this)">📱 bKash</div>
+          <div class="pay-option" data-payment="nagad" onclick="selectPay(this)">📱 Nagad</div>
+          <div class="pay-option" data-payment="cod" onclick="selectPay(this)">💵 Cash on Delivery</div>
+        </div>
+        <div class="payment-fields active" id="card-fields" data-payment-panel="card">
+          <div class="form-group"><label>Card Number</label><input type="text" placeholder="1234 5678 9012 3456"></div>
+          <div class="card-row">
+            <div class="form-group"><label>Card Name</label><input type="text" placeholder="Name on card"></div>
+            <div class="form-group"><label>Expiry</label><input type="text" placeholder="MM/YY"></div>
+            <div class="form-group"><label>CVV</label><input type="text" placeholder="123"></div>
+          </div>
+        </div>
+        <div class="payment-fields mobile-payment-box bkash-theme" id="bkash-fields" data-payment-panel="bkash">
+          <div class="merchant-payment-number">
+            <span>Send Money to bKash Personal</span>
+            <strong id="bkash-merchant-number">01XXXXXXXXX</strong>
+          </div>
+          <div class="form-group"><label>bKash TrxID</label><input type="text" id="bkash-trx-id" placeholder="Enter transaction ID"></div>
+          <p>Open bKash, choose Send Money, send the order total to this personal number, then submit the bKash TrxID here.</p>
+        </div>
+        <div class="payment-fields mobile-payment-box nagad-theme" id="nagad-fields" data-payment-panel="nagad">
+          <div class="merchant-payment-number">
+            <span>Send Money to Nagad Personal</span>
+            <strong id="nagad-merchant-number">01XXXXXXXXX</strong>
+          </div>
+          <div class="form-group"><label>Nagad TrxID</label><input type="text" id="nagad-trx-id" placeholder="Enter transaction ID"></div>
+          <p>Open Nagad, choose Send Money, send the order total to this personal number, then submit the Nagad TrxID here.</p>
+        </div>
+        <div class="payment-fields cod-payment-box" id="cod-fields" data-payment-panel="cod"></div>
+      </div>
+
+      <div class="checkout-actions">
+        <button class="btn-outline-dark hidden" id="checkout-back-btn" type="button" onclick="showCheckoutStage('details')">Back to Details</button>
+        <button class="btn-primary" id="checkout-next-btn" type="button" onclick="continueToPayment()">Next to Payment →</button>
+        <button class="btn-primary hidden" id="checkout-place-btn" type="button" onclick="placeOrder()">Place Order →</button>
+      </div>
+    </div>
+
+    <!-- ORDER SUMMARY -->
+    <div>
+      <div class="order-summary">
+        <h3>Order Summary</h3>
+        <div id="checkout-summary-items"></div>
+        <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem">
+          <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:6px 0"><span style="color:var(--text-muted)">Subtotal</span><span id="summary-subtotal">$0.00</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:6px 0"><span style="color:var(--text-muted)">Shipping</span><span style="color:#22c55e">Free</span></div>
+          <div class="summary-total"><span>Total</span><span id="summary-total-price">$0.00</span></div>
+        </div>
+        <div style="margin-top:1rem;padding:12px;background:rgba(72,209,204,0.06);border-radius:var(--radius-sm);border:1px solid rgba(72,209,204,0.2);font-size:0.8rem;color:var(--turquoise-xdark)">
+          🔒 Secure checkout — your data is encrypted and protected.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================
+     PAGE: ORDER SUCCESS
+============================== -->
+<div class="page" id="page-success" style="padding-top:64px;background:var(--smoke)">
+  <div class="success-container">
+    <div class="success-icon">✓</div>
+    <h2>Order Placed Successfully!</h2>
+    <p>Thank you for your order. We've received it and will start printing shortly. You'll get a confirmation email soon.</p>
+    <div class="order-num" id="success-order-num">Order #DP-0001</div>
+    <div style="display:flex;gap:12px">
+      <button class="btn-primary" onclick="showPage('home')">Continue Shopping</button>
+      <button class="btn-outline-dark" onclick="openInfoPage('track')">Track Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================
+     PAGE: ADMIN
+============================== -->
+<div class="page" id="page-admin">
+  <div class="admin-layout" style="margin-top:64px">
+    <div class="admin-sidebar">
+      <div style="padding:1.5rem;margin-bottom:0.5rem">
+        <div class="nav-logo" style="font-size:1rem"><div class="logo-dot" style="width:22px;height:22px"></div>DotProject <span style="color:var(--taupe);font-size:0.75rem;font-family:'DM Sans',sans-serif;font-weight:400">Admin</span></div>
+      </div>
+      <div class="admin-nav-item active" onclick="switchAdmin('dashboard',this)">📊 Dashboard</div>
+      <div class="admin-nav-item" onclick="switchAdmin('add-product',this)">➕ Add Product</div>
+      <div class="admin-nav-item" onclick="switchAdmin('products',this)">📦 Products</div>
+      <div class="admin-nav-item" onclick="switchAdmin('orders',this)">🛒 Orders</div>
+      <div style="padding:1.5rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.06)">
+        <div style="font-size:0.8rem;color:var(--taupe);margin-bottom:8px">Logged in as</div>
+        <div style="font-size:0.875rem;color:white;font-weight:600" id="admin-current-user">Admin User</div>
+      </div>
+    </div>
+    <div class="admin-content">
+
+      <!-- DASHBOARD -->
+      <div id="admin-dashboard">
+        <h2>Dashboard</h2>
+        <p class="sub">Overview of your store performance</p>
+        <div class="admin-stats">
+          <div class="admin-stat"><div class="s-label">Total Revenue</div><div class="s-val">$2,847</div><div class="s-change">↑ 12% this month</div></div>
+          <div class="admin-stat"><div class="s-label">Total Orders</div><div class="s-val">64</div><div class="s-change">↑ 8 this week</div></div>
+          <div class="admin-stat"><div class="s-label">Products</div><div class="s-val" id="admin-product-count">0</div><div class="s-change">Live catalog</div></div>
+          <div class="admin-stat"><div class="s-label">Customers</div><div class="s-val">152</div><div class="s-change">↑ 22 new</div></div>
+        </div>
+        <div class="admin-access-panel" id="super-admin-panel" style="display:none">
+          <h3 style="font-size:1rem;font-weight:800;margin-bottom:0.75rem">Admin Gmail Access</h3>
+          <p class="sub" style="margin-bottom:1rem">Only the super admin can add Gmail addresses that may open the admin area.</p>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0"><label>Admin Gmail</label><input type="email" id="grant-admin-email" placeholder="newadmin@gmail.com"></div>
+            <button class="btn-primary" style="align-self:end;justify-content:center" onclick="grantAdminAccess()">Grant Access</button>
+          </div>
+          <div class="admin-access-list" id="admin-access-list"></div>
+        </div>
+        <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
+          <h3 style="font-size:1rem;font-weight:800;margin-bottom:1.5rem">Recent Orders</h3>
+          <table class="data-table">
+            <thead><tr><th>Order</th><th>Customer</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>#DP-0064</td><td>Rafiq Ahmed</td><td>Auto Cat Feeder</td><td>$49</td><td><span class="status-badge status-active">Printing</span></td></tr>
+              <tr><td>#DP-0063</td><td>Nusrat Jahan</td><td>Custom Keyring ×3</td><td>$24</td><td><span class="status-badge status-active">Shipped</span></td></tr>
+              <tr><td>#DP-0062</td><td>Tanvir Islam</td><td>Fish Auto Feeder</td><td>$35</td><td><span class="status-badge status-low">Pending</span></td></tr>
+              <tr><td>#DP-0061</td><td>Sadia Hossain</td><td>Mini Shelf (2pcs)</td><td>$18</td><td><span class="status-badge status-active">Delivered</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ADD PRODUCT -->
+      <div id="admin-add-product" style="display:none">
+        <h2>Add New Product</h2>
+        <p class="sub">Fill in the details to publish a new product to your store</p>
+
+        <div style="display:grid;grid-template-columns:1fr 360px;gap:1.5rem">
+          <div>
+            <div class="form-section">
+              <h4>Basic Information</h4>
+              <div class="form-group"><label>Product Name</label><input type="text" placeholder="e.g. Auto Cat Feeder – Smart Edition" id="ap-name"></div>
+              <div class="form-group"><label>Description</label><textarea rows="4" placeholder="Describe your product..." id="ap-desc"></textarea></div>
+              <div class="form-row">
+                <div class="form-group"><label>Category</label>
+                  <select id="ap-cat">
+                    <option>Keychains & Rings</option>
+                    <option>Home Decor</option>
+                    <option>Smart Devices</option>
+                    <option>Custom Order</option>
+                  </select>
+                </div>
+                <div class="form-group"><label>Price (USD)</label><input type="number" placeholder="0.00" id="ap-price"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label>Print Material</label>
+                  <select><option>PLA+</option><option>PETG</option><option>Resin</option><option>TPU</option></select>
+                </div>
+                <div class="form-group"><label>Stock Quantity</label><input type="number" placeholder="24" id="ap-stock"></div>
+              </div>
+            </div>
+            <div class="form-section">
+              <h4>Specifications</h4>
+              <div class="form-row">
+                <div class="form-group"><label>Print Time</label><input type="text" placeholder="e.g. 3–5 hours"></div>
+                <div class="form-group"><label>Dimensions</label><input type="text" placeholder="e.g. 12×8×6 cm"></div>
+              </div>
+              <div class="form-group"><label>Tags (comma separated)</label><input type="text" placeholder="smart, auto, feeder, cat"></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="form-section" style="margin-bottom:1rem">
+              <h4>Product Images</h4>
+              <input type="text" id="ap-photo-urls" placeholder="Optional photo URL(s), comma separated" style="margin-bottom:12px">
+              <input type="hidden" id="ap-photo">
+              <input type="file" id="ap-photo-file" accept="image/*" style="display:none" onchange="readProductPhoto(this,'ap-photo')">
+              <div class="upload-zone" onclick="document.getElementById('ap-photo-file').click()">
+                <div class="icon">📸</div>
+                <p><strong>Click to upload</strong> or drag & drop</p>
+                <p style="font-size:0.8rem;margin-top:6px;color:var(--text-light)">PNG, JPG, WEBP — up to 10MB</p>
+              </div>
+            </div>
+
+            <div class="form-section" style="margin-bottom:1rem">
+              <h4>3D Model Preview</h4>
+              <div class="preview-container">
+                <div class="preview-model" id="preview-emoji">📦</div>
+              </div>
+              <div class="preview-controls">
+                <button class="preview-btn" onclick="document.getElementById('preview-emoji').textContent='🐱'">Cat Feeder</button>
+                <button class="preview-btn" onclick="document.getElementById('preview-emoji').textContent='🔑'">Keyring</button>
+                <button class="preview-btn" onclick="document.getElementById('preview-emoji').textContent='🐠'">Fish Feeder</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Product Status</label>
+              <select id="ap-status"><option>Active</option><option>Draft</option><option>Out of Stock</option></select>
+            </div>
+            <button class="btn-primary btn-full" onclick="adminAddProduct()">Publish Product</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRODUCTS LIST -->
+      <div id="admin-products" style="display:none">
+        <h2>All Products</h2>
+        <p class="sub">Manage your product catalog</p>
+        <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
+          <table class="data-table">
+            <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="admin-product-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ORDERS -->
+      <div id="admin-orders" style="display:none">
+        <h2>All Orders</h2>
+        <p class="sub">Manage and track all customer orders</p>
+        <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
+          <table class="data-table">
+            <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td><strong>#DP-0064</strong></td><td>Rafiq Ahmed</td><td>Auto Cat Feeder ×1</td><td>$49</td><td>Jun 08</td><td><span class="status-badge status-active">Printing</span></td></tr>
+              <tr><td><strong>#DP-0063</strong></td><td>Nusrat Jahan</td><td>Custom Keyring ×3</td><td>$24</td><td>Jun 07</td><td><span class="status-badge status-active">Shipped</span></td></tr>
+              <tr><td><strong>#DP-0062</strong></td><td>Tanvir Islam</td><td>Fish Auto Feeder ×1</td><td>$35</td><td>Jun 06</td><td><span class="status-badge status-low">Pending</span></td></tr>
+              <tr><td><strong>#DP-0061</strong></td><td>Sadia Hossain</td><td>Mini Shelf ×2</td><td>$18</td><td>Jun 05</td><td><span class="status-badge status-active">Delivered</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

@@ -606,6 +606,10 @@
   .step.done .step-num { background: var(--turquoise); color: var(--onyx); }
   .step-line { flex: 1; height: 1px; background: var(--border); margin: 0 8px; margin-top: -1px; }
   .checkout-card { background: white; border-radius: var(--radius-lg); padding: 2rem; margin-bottom: 1.5rem; }
+  .checkout-card.hidden { display: none; }
+  .checkout-actions { display: flex; gap: 12px; }
+  .checkout-actions .btn-primary,
+  .checkout-actions .btn-outline-dark { flex: 1; justify-content: center; padding: 16px; font-size: 1rem; }
   .checkout-card h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 1.5rem; letter-spacing: -0.02em; }
   .order-summary { background: white; border-radius: var(--radius-lg); padding: 1.5rem; position: sticky; top: 80px; }
   .order-summary h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 1.5rem; }
@@ -629,6 +633,14 @@
     background: rgba(72,209,204,0.05);
     border-radius: var(--radius-sm);
     padding: 1rem;
+  }
+  .mobile-payment-box.bkash-theme {
+    border-color: rgba(226, 20, 108, 0.28);
+    background: rgba(226, 20, 108, 0.06);
+  }
+  .mobile-payment-box.nagad-theme {
+    border-color: rgba(239, 84, 35, 0.3);
+    background: rgba(239, 84, 35, 0.07);
   }
   .mobile-payment-box p {
     color: var(--text-muted);
@@ -656,6 +668,8 @@
     font-family: 'Syne',sans-serif;
     font-size: 1.15rem;
   }
+  .bkash-theme .merchant-payment-number strong { color: #e2146c; }
+  .nagad-theme .merchant-payment-number strong { color: #ef5423; }
   .cod-payment-box.active { display: none; }
   .card-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
 
@@ -751,6 +765,24 @@
   .shop-page-header p { color: var(--taupe-light); max-width: 560px; }
   .shop-tools { background: white; border-bottom: 1px solid var(--border); padding: 1rem 5rem; display: grid; grid-template-columns: 1fr 220px; gap: 1rem; }
   .shop-products-wrap { padding: 3rem 5rem; }
+  #page-info { padding-top: 64px; background: var(--smoke); min-height: 100vh; }
+  .info-page-header {
+    background: var(--onyx); color: white; padding: 4rem 5rem 3rem;
+    display: flex; align-items: end; justify-content: space-between; gap: 2rem;
+  }
+  .info-page-header h1 { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
+  .info-page-header p { color: var(--taupe-light); max-width: 560px; }
+  .info-content {
+    max-width: 900px; margin: 0 auto; padding: 3rem 2rem;
+    display: grid; gap: 1rem;
+  }
+  .info-panel {
+    background: white; border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 1.5rem;
+  }
+  .info-panel h3 { font-size: 1rem; font-weight: 800; margin-bottom: 0.75rem; }
+  .info-panel p, .info-panel li { color: var(--text-muted); font-size: 0.95rem; line-height: 1.7; }
+  .info-panel ul { padding-left: 1.2rem; }
   .admin-access-panel { background: white; border-radius: var(--radius); padding: 1.5rem; border: 1px solid var(--border); margin-bottom: 1.5rem; }
   .admin-access-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1rem; }
   .admin-email-chip { background: var(--smoke); border: 1px solid var(--border); border-radius: 100px; padding: 6px 10px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 8px; }
@@ -822,6 +854,7 @@
     .hero-search input { min-height: 42px; }
     .hero-search .btn-primary { width: 100%; justify-content: center; }
     .shop-tools { grid-template-columns: 1fr; padding: 1rem 1.25rem; }
+    .checkout-actions { flex-direction: column; }
     .account-layout { grid-template-columns: 1fr; }
     .account-menu { flex-direction: row; flex-wrap: wrap; }
     .account-menu button { flex: 1 1 140px; text-align: center; }
@@ -1207,29 +1240,29 @@
       <div class="footer-col">
         <h5>Shop</h5>
         <ul>
-          <li><a onclick="scrollToShop()">All Products</a></li>
-          <li><a onclick="scrollToShop()">Keychains</a></li>
-          <li><a onclick="scrollToShop()">Smart Devices</a></li>
-          <li><a onclick="scrollToShop()">Custom Order</a></li>
+          <li><a onclick="openShopCategory('')">All Products</a></li>
+          <li><a onclick="openShopCategory('Keychains & Rings')">Keychains</a></li>
+          <li><a onclick="openShopCategory('Smart Devices')">Smart Devices</a></li>
+          <li><a onclick="openShopCategory('Custom Order')">Custom Order</a></li>
         </ul>
       </div>
       <div class="footer-col">
         <h5>Company</h5>
         <ul>
           <li><a onclick="scrollToAbout()">About Us</a></li>
-          <li><a>Blog</a></li>
-          <li><a>Careers</a></li>
+          <li><a onclick="openInfoPage('blog')">Blog</a></li>
+          <li><a onclick="openInfoPage('careers')">Careers</a></li>
           <li><a href="https://github.com/Sagor-Sharif" target="_blank" rel="noopener noreferrer">GitHub</a></li>
-          <li><a>Contact</a></li>
+          <li><a onclick="openInfoPage('contact')">Contact</a></li>
         </ul>
       </div>
       <div class="footer-col">
         <h5>Support</h5>
         <ul>
-          <li><a>FAQ</a></li>
-          <li><a>Shipping Policy</a></li>
-          <li><a>Returns</a></li>
-          <li><a>Track Order</a></li>
+          <li><a onclick="openInfoPage('faq')">FAQ</a></li>
+          <li><a onclick="openInfoPage('shipping')">Shipping Policy</a></li>
+          <li><a onclick="openInfoPage('returns')">Returns</a></li>
+          <li><a onclick="openInfoPage('track')">Track Order</a></li>
         </ul>
       </div>
     </div>
@@ -1268,6 +1301,21 @@
 </div>
 
 <!-- ==============================
+     PAGE: INFO
+============================== -->
+<div class="page" id="page-info">
+  <div class="info-page-header">
+    <div>
+      <div class="section-badge on-dark" id="info-badge">Info</div>
+      <h1 id="info-title">DotProject Info</h1>
+      <p id="info-subtitle">Helpful details for customers.</p>
+    </div>
+    <button class="btn-secondary" onclick="showPage('home')">Back Home</button>
+  </div>
+  <div class="info-content" id="info-content"></div>
+</div>
+
+<!-- ==============================
      PAGE: CHECKOUT
 ============================== -->
 <div class="page" id="page-checkout">
@@ -1287,7 +1335,7 @@
   <div class="checkout-layout">
     <div>
       <!-- CONTACT -->
-      <div class="checkout-card" id="checkout-step-details">
+      <div class="checkout-card checkout-detail-card" id="checkout-step-details">
         <h3>Contact Information</h3>
         <div class="form-group"><label>Full Name</label><input type="text" placeholder="Your full name"></div>
         <div class="form-row">
@@ -1297,7 +1345,7 @@
       </div>
 
       <!-- SHIPPING -->
-      <div class="checkout-card">
+      <div class="checkout-card checkout-detail-card">
         <h3>Shipping Address</h3>
         <div class="form-group"><label>Street Address</label><input type="text" placeholder="House no, Road, Area"></div>
         <div class="form-row">
@@ -1312,7 +1360,7 @@
       </div>
 
       <!-- PAYMENT -->
-      <div class="checkout-card" id="checkout-step-payment">
+      <div class="checkout-card hidden" id="checkout-step-payment">
         <h3>Payment Method</h3>
         <div class="payment-method">
           <div class="pay-option selected" data-payment="card" onclick="selectPay(this)">💳 Card</div>
@@ -1328,26 +1376,30 @@
             <div class="form-group"><label>CVV</label><input type="text" placeholder="123"></div>
           </div>
         </div>
-        <div class="payment-fields mobile-payment-box" id="bkash-fields" data-payment-panel="bkash">
+        <div class="payment-fields mobile-payment-box bkash-theme" id="bkash-fields" data-payment-panel="bkash">
           <div class="merchant-payment-number">
             <span>Send Money to bKash Personal</span>
             <strong id="bkash-merchant-number">01XXXXXXXXX</strong>
           </div>
           <div class="form-group"><label>bKash TrxID</label><input type="text" id="bkash-trx-id" placeholder="Enter transaction ID"></div>
-          <p>Send the total amount first, then submit the bKash TrxID here.</p>
+          <p>Open bKash, choose Send Money, send the order total to this personal number, then submit the bKash TrxID here.</p>
         </div>
-        <div class="payment-fields mobile-payment-box" id="nagad-fields" data-payment-panel="nagad">
+        <div class="payment-fields mobile-payment-box nagad-theme" id="nagad-fields" data-payment-panel="nagad">
           <div class="merchant-payment-number">
             <span>Send Money to Nagad Personal</span>
             <strong id="nagad-merchant-number">01XXXXXXXXX</strong>
           </div>
           <div class="form-group"><label>Nagad TrxID</label><input type="text" id="nagad-trx-id" placeholder="Enter transaction ID"></div>
-          <p>Send the total amount first, then submit the Nagad TrxID here.</p>
+          <p>Open Nagad, choose Send Money, send the order total to this personal number, then submit the Nagad TrxID here.</p>
         </div>
         <div class="payment-fields cod-payment-box" id="cod-fields" data-payment-panel="cod"></div>
       </div>
 
-      <button class="btn-primary" style="width:100%;justify-content:center;padding:16px;font-size:1rem" onclick="placeOrder()">Place Order →</button>
+      <div class="checkout-actions">
+        <button class="btn-outline-dark hidden" id="checkout-back-btn" type="button" onclick="showCheckoutStage('details')">Back to Details</button>
+        <button class="btn-primary" id="checkout-next-btn" type="button" onclick="continueToPayment()">Next to Payment →</button>
+        <button class="btn-primary hidden" id="checkout-place-btn" type="button" onclick="placeOrder()">Place Order →</button>
+      </div>
     </div>
 
     <!-- ORDER SUMMARY -->
@@ -1379,7 +1431,7 @@
     <div class="order-num" id="success-order-num">Order #DP-0001</div>
     <div style="display:flex;gap:12px">
       <button class="btn-primary" onclick="showPage('home')">Continue Shopping</button>
-      <button class="btn-outline-dark" onclick="showPage('home')">Track Order</button>
+      <button class="btn-outline-dark" onclick="openInfoPage('track')">Track Order</button>
     </div>
   </div>
 </div>
@@ -1558,8 +1610,8 @@ const products = [
 
 let cart = [];
 const SUPER_ADMIN_EMAIL = 'superadmin@gmail.com';
-const BKASH_PERSONAL_NUMBER = '01XXXXXXXXX';
-const NAGAD_PERSONAL_NUMBER = '01XXXXXXXXX';
+const BKASH_PERSONAL_NUMBER = '0175047924';
+const NAGAD_PERSONAL_NUMBER = '0175047924';
 let currentUser = JSON.parse(localStorage.getItem('dotCurrentUser') || 'null');
 let adminEmails = JSON.parse(localStorage.getItem('dotAdminEmails') || 'null') || [SUPER_ADMIN_EMAIL];
 let resetCode = '';
@@ -1745,6 +1797,25 @@ function updateCheckoutSteps(activeStep = 'payment') {
     steps.cart?.classList.add('done');
     steps.details?.classList.add('active');
   }
+}
+
+function showCheckoutStage(stage = 'details') {
+  const isPayment = stage === 'payment';
+  document.querySelectorAll('.checkout-detail-card').forEach(card => card.classList.toggle('hidden', isPayment));
+  document.getElementById('checkout-step-payment')?.classList.toggle('hidden', !isPayment);
+  document.getElementById('checkout-back-btn')?.classList.toggle('hidden', !isPayment);
+  document.getElementById('checkout-next-btn')?.classList.toggle('hidden', isPayment);
+  document.getElementById('checkout-place-btn')?.classList.toggle('hidden', !isPayment);
+  updateCheckoutSteps(isPayment ? 'payment' : 'details');
+  if(isPayment) {
+    syncMerchantPaymentNumbers();
+    const selectedPay = document.querySelector('.pay-option.selected') || document.querySelector('.pay-option[data-payment="card"]');
+    if(selectedPay) selectPay(selectedPay);
+  }
+}
+
+function continueToPayment() {
+  showCheckoutStage('payment');
 }
 
 function syncMerchantPaymentNumbers() {
@@ -1972,9 +2043,68 @@ function searchFromHome(value) {
   if(shopCategory) shopCategory.value = '';
   showPage('shop');
 }
+function openShopCategory(category) {
+  const shopInput = document.getElementById('shop-search');
+  const shopCategory = document.getElementById('shop-category');
+  if(shopInput) shopInput.value = '';
+  if(shopCategory) shopCategory.value = category;
+  showPage('shop');
+}
 function submitHomeSearch(event) {
   event.preventDefault();
   searchFromHome(document.getElementById('home-product-search')?.value.trim() || '');
+}
+const infoPages = {
+  contact: {
+    badge: 'Contact',
+    title: 'Contact DotProject',
+    subtitle: 'Reach us for product questions, custom orders, and order help.',
+    html: `<div class="info-panel"><h3>Contact Details</h3><p>Phone: <a href="tel:0175047924">0175047924</a></p><p>Facebook: <a href="https://facebook.com/DotProjectBD" target="_blank" rel="noopener noreferrer">DotProject Facebook Page</a></p><p>Location: Dhaka, Bangladesh</p></div><div class="info-panel"><h3>Support</h3><p>WhatsApp support: <a href="https://wa.me/880175047924" target="_blank" rel="noopener noreferrer">0175047924</a></p><p>Facebook support: <a href="https://facebook.com/DotProjectBD" target="_blank" rel="noopener noreferrer">Message us on Facebook</a></p><p>Response time: Usually within 24 hours.</p></div>`
+  },
+  faq: {
+    badge: 'FAQ',
+    title: 'Frequently Asked Questions',
+    subtitle: 'Basic answers for demo customers.',
+    html: `<div class="info-panel"><h3>How long does printing take?</h3><p>Most demo orders are prepared within 2 to 5 business days depending on size and complexity.</p></div><div class="info-panel"><h3>Can I request a custom design?</h3><p>Yes. Use Custom Order from the shop footer and describe the product, size, color, and quantity.</p></div><div class="info-panel"><h3>Do you deliver outside Dhaka?</h3><p>Yes, this demo policy supports nationwide delivery across Bangladesh.</p></div>`
+  },
+  shipping: {
+    badge: 'Support',
+    title: 'Shipping Policy',
+    subtitle: 'Demo shipping rules for customer testing.',
+    html: `<div class="info-panel"><h3>Delivery Time</h3><p>Dhaka demo delivery: 2 to 4 business days. Outside Dhaka: 3 to 7 business days.</p></div><div class="info-panel"><h3>Delivery Charge</h3><p>The current demo checkout shows free shipping. Final delivery fees can be added later.</p></div>`
+  },
+  returns: {
+    badge: 'Support',
+    title: 'Returns',
+    subtitle: 'Demo return rules for printed products.',
+    html: `<div class="info-panel"><h3>Return Window</h3><p>Demo returns are accepted within 3 days if the product arrives damaged or incorrect.</p></div><div class="info-panel"><h3>Custom Products</h3><p>Custom printed items are not returnable unless they are damaged or different from the confirmed design.</p></div>`
+  },
+  track: {
+    badge: 'Support',
+    title: 'Track Order',
+    subtitle: 'Demo tracking details for testing.',
+    html: `<div class="info-panel"><h3>Track by WhatsApp</h3><p>Send your order number to 0175047924 on WhatsApp for a demo tracking update.</p></div><div class="info-panel"><h3>Example Status</h3><ul><li>Order received</li><li>Printing</li><li>Quality check</li><li>Out for delivery</li></ul></div>`
+  },
+  blog: {
+    badge: 'Company',
+    title: 'Blog',
+    subtitle: 'Demo posts from the DotProject workshop.',
+    html: `<div class="info-panel"><h3>How 3D Printing Helps Custom Product Ideas</h3><p>A short demo article about turning sketches into useful printed products.</p></div><div class="info-panel"><h3>Choosing PLA, PETG, and Colors</h3><p>A demo guide for customers choosing material and finish.</p></div>`
+  },
+  careers: {
+    badge: 'Company',
+    title: 'Careers',
+    subtitle: 'Demo hiring information.',
+    html: `<div class="info-panel"><h3>Open Roles</h3><p>No active roles right now. Demo roles may include 3D designer, print operator, and customer support.</p></div><div class="info-panel"><h3>Apply</h3><p>Send your portfolio or CV through the contact number: 0175047924.</p></div>`
+  }
+};
+function openInfoPage(key) {
+  const info = infoPages[key] || infoPages.contact;
+  document.getElementById('info-badge').textContent = info.badge;
+  document.getElementById('info-title').textContent = info.title;
+  document.getElementById('info-subtitle').textContent = info.subtitle;
+  document.getElementById('info-content').innerHTML = info.html;
+  showPage('info');
 }
 function renderAdminTable() {
   const tb = document.getElementById('admin-product-table');
@@ -2010,9 +2140,7 @@ function showPage(id) {
   if(id==='checkout') {
     renderCheckoutSummary();
     syncMerchantPaymentNumbers();
-    updateCheckoutSteps('payment');
-    const selectedPay = document.querySelector('.pay-option.selected') || document.querySelector('.pay-option[data-payment="card"]');
-    if(selectedPay) selectPay(selectedPay);
+    showCheckoutStage('details');
   }
   if(id==='shop') renderShopProducts();
   if(id==='admin') {
