@@ -100,6 +100,23 @@
     transition: background 0.2s;
   }
   .btn-nav-signin:hover { background: var(--turquoise-dark); }
+  .account-chip {
+    display: none; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.08); color: white;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 100px; padding: 5px 12px 5px 5px;
+    cursor: pointer; font-family: 'DM Sans',sans-serif;
+    font-size: 0.875rem; font-weight: 500;
+  }
+  .account-chip:hover { border-color: var(--turquoise); }
+  .account-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--turquoise), var(--queen-blue));
+    color: var(--onyx); display: inline-flex; align-items: center; justify-content: center;
+    overflow: hidden; font-weight: 700; flex-shrink: 0;
+  }
+  .account-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .account-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* BUTTONS */
   .btn-primary {
@@ -181,6 +198,27 @@
     max-width: 480px;
   }
   .hero-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+  .hero-search {
+    margin-top: 1.5rem; max-width: 560px; display: grid;
+    grid-template-columns: 1fr auto; gap: 10px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius); padding: 8px; backdrop-filter: blur(12px);
+  }
+  .hero-search input {
+    min-width: 0; border: none; background: transparent; color: white;
+    font-family: 'DM Sans',sans-serif; font-size: 0.98rem; outline: none;
+    padding: 0 10px;
+  }
+  .hero-search input::placeholder { color: rgba(255,255,255,0.48); }
+  .hero-search .btn-primary { padding: 12px 18px; white-space: nowrap; }
+  .hero-search-hints { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .hero-search-hints button {
+    border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06);
+    color: var(--taupe-light); border-radius: 999px; padding: 6px 10px;
+    font-family: 'DM Sans',sans-serif; font-size: 0.78rem; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .hero-search-hints button:hover { color: white; border-color: rgba(72,209,204,0.55); background: rgba(72,209,204,0.12); }
   .hero-stats {
     display: flex; gap: 2.5rem; margin-top: 3rem;
     padding-top: 2rem; border-top: 1px solid rgba(255,255,255,0.08);
@@ -491,12 +529,35 @@
     font-family: 'DM Sans',sans-serif;
   }
   .product-detail-info .back-btn:hover { color: var(--turquoise-xdark); }
-  .product-detail-info h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
+  .product-detail-info h1 { font-size: 2.2rem; font-weight: 400; letter-spacing: 0; margin-bottom: 0.5rem; }
   .product-detail-info .det-category { font-size: 0.8rem; color: var(--taupe); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; }
-  .product-detail-price { font-family: 'Syne',sans-serif; font-weight: 800; font-size: 2.5rem; color: var(--onyx); margin: 1rem 0; }
+  .product-detail-price { font-family: 'DM Sans',sans-serif; font-weight: 400; font-size: 2.5rem; color: var(--onyx); margin: 1rem 0; }
   .product-detail-price sup { font-size: 1.2rem; }
   .stars { color: #f59e0b; font-size: 0.9rem; margin-bottom: 1.5rem; }
-  .det-desc { color: var(--text-muted); line-height: 1.8; margin-bottom: 2rem; }
+  .det-desc { color: var(--text-muted); line-height: 1.7; margin-bottom: 0.65rem; font-weight: 400; }
+  .det-stock { color: var(--queen-blue); font-size: 0.95rem; font-weight: 400; margin-bottom: 1.5rem; }
+  .product-gallery { display: flex; flex-direction: column; gap: 18px; }
+  .product-gallery-main {
+    position: relative; height: 400px; border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--smoke), var(--taupe-xlight));
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; border: 1px solid var(--border);
+  }
+  .product-gallery-main img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .product-thumbs { display: flex; gap: 14px; flex-wrap: wrap; }
+  .product-thumb {
+    width: 76px; height: 76px; border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border); background: var(--smoke);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; overflow: hidden; padding: 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .product-thumb:hover, .product-thumb.active {
+    border-color: var(--turquoise);
+    box-shadow: 0 0 0 3px rgba(72,209,204,0.16);
+  }
+  .product-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .product-thumb span { font-family: 'DM Sans',sans-serif; font-size: 1.65rem; }
   .qty-selector { display: flex; align-items: center; gap: 0; margin-bottom: 1.5rem; }
   .qty-btn {
     width: 40px; height: 40px; border: 1.5px solid var(--border);
@@ -509,7 +570,7 @@
   .qty-btn:hover { background: var(--turquoise); color: white; border-color: var(--turquoise); }
   .qty-input {
     width: 56px; height: 40px; border: 1.5px solid var(--border); border-left: none; border-right: none;
-    text-align: center; font-family: 'Syne',sans-serif; font-weight: 700;
+    text-align: center; font-family: 'DM Sans',sans-serif; font-weight: 500;
     background: var(--smoke); border-radius: 0; font-size: 0.95rem;
   }
   .det-actions { display: flex; gap: 12px; margin-bottom: 2rem; }
@@ -659,6 +720,65 @@
   .edit-actions { display: flex; gap: 10px; justify-content: flex-end; }
   .reset-step { display: none; }
   .reset-step.active { display: block; }
+  .account-layout { display: grid; grid-template-columns: 180px 1fr; gap: 1.25rem; }
+  .account-menu { display: flex; flex-direction: column; gap: 8px; }
+  .account-menu button {
+    border: 1px solid var(--border); background: var(--smoke);
+    border-radius: var(--radius-sm); padding: 12px 14px;
+    text-align: left; cursor: pointer; font-family: 'DM Sans',sans-serif;
+    font-weight: 500; color: var(--text-main);
+  }
+  .account-menu button.active, .account-menu button:hover {
+    background: var(--turquoise); border-color: var(--turquoise); color: var(--onyx);
+  }
+  .account-panel {
+    min-height: 320px; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1.25rem; background: white;
+  }
+  .profile-photo-row { display: flex; align-items: center; gap: 16px; margin-bottom: 1.25rem; }
+  .profile-photo {
+    width: 96px; height: 96px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--turquoise), var(--queen-blue));
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; color: var(--onyx); font-size: 2rem; font-weight: 700;
+  }
+  .profile-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .account-empty {
+    background: var(--smoke); border-radius: var(--radius-sm);
+    padding: 1rem; color: var(--text-muted); line-height: 1.6;
+  }
+  .order-status-grid {
+    display: grid; grid-template-columns: repeat(5, minmax(96px, 1fr));
+    gap: 10px; margin-bottom: 1rem;
+  }
+  .order-status-card {
+    border: 1px solid var(--border); background: var(--smoke);
+    border-radius: var(--radius-sm); padding: 12px 10px; text-align: center;
+  }
+  .order-status-card strong {
+    display: block; color: var(--onyx); font-size: 1.25rem; margin-bottom: 4px;
+  }
+  .order-status-card span { color: var(--text-muted); font-size: 0.8rem; font-weight: 600; }
+  .order-list { display: grid; gap: 10px; }
+  .order-list-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 14px; background: white;
+  }
+  .order-list-row small { display: block; color: var(--text-muted); margin-top: 3px; }
+  .order-list-row .status-badge { white-space: nowrap; }
+  @media (max-width: 720px) {
+    .hero-search { grid-template-columns: 1fr; }
+    .hero-search input { min-height: 42px; }
+    .hero-search .btn-primary { width: 100%; justify-content: center; }
+    .shop-tools { grid-template-columns: 1fr; padding: 1rem 1.25rem; }
+    .account-layout { grid-template-columns: 1fr; }
+    .account-menu { flex-direction: row; flex-wrap: wrap; }
+    .account-menu button { flex: 1 1 140px; text-align: center; }
+    .account-name { display: none; }
+    .order-status-grid { grid-template-columns: repeat(2, 1fr); }
+    .order-list-row { align-items: flex-start; flex-direction: column; }
+  }
 </style>
 </head>
 <body>
@@ -682,6 +802,10 @@
       🛒 Cart <span class="cart-badge" id="cart-count">0</span>
     </button>
     <button class="btn-nav-signin" onclick="openModal('modal-signin')">Sign In</button>
+    <button class="account-chip" id="account-chip" onclick="openAccountModal()">
+      <span class="account-avatar" id="nav-account-photo"></span>
+      <span class="account-name" id="nav-account-name"></span>
+    </button>
   </div>
 </nav>
 
@@ -744,11 +868,11 @@
     <div class="form-row">
       <div class="form-group">
         <label>First name</label>
-        <input type="text" placeholder="Rafiq">
+        <input type="text" placeholder="Rafiq" id="signup-first-name">
       </div>
       <div class="form-group">
         <label>Last name</label>
-        <input type="text" placeholder="Ahmed">
+        <input type="text" placeholder="Ahmed" id="signup-last-name">
       </div>
     </div>
     <div class="form-group">
@@ -802,18 +926,40 @@
   </div>
 </div>
 
+<!-- CUSTOMER ACCOUNT MODAL -->
+<div class="modal-page" id="modal-account">
+  <div class="modal-box wide">
+    <button class="modal-close" onclick="closeModal('modal-account')">X</button>
+    <h2>My account</h2>
+    <p class="subtitle" id="account-subtitle">Manage your DotProject account</p>
+    <div class="account-layout">
+      <div class="account-menu">
+        <button type="button" class="active" data-account-tab="profile" onclick="showAccountTab('profile', this)">Profile</button>
+        <button type="button" data-account-tab="orders" onclick="showAccountTab('orders', this)">My Order</button>
+        <button type="button" data-account-tab="shipping" onclick="showAccountTab('shipping', this)">Shipping Address</button>
+        <button type="button" data-account-tab="cart" onclick="showAccountTab('cart', this)">Product Cart</button>
+      </div>
+      <div class="account-panel" id="account-panel"></div>
+    </div>
+  </div>
+</div>
+
 <!-- PRODUCT DETAIL MODAL -->
 <div class="modal-page" id="modal-product">
   <div class="modal-box wide">
     <button class="modal-close" onclick="closeModal('modal-product')">✕</button>
     <div class="product-detail-grid" style="padding-top:0;min-height:auto">
-      <div class="product-preview" style="position:relative;height:400px;border-radius:var(--radius-lg)" id="modal-product-img"></div>
+      <div class="product-gallery">
+        <div class="product-gallery-main" id="modal-product-img"></div>
+        <div class="product-thumbs" id="modal-product-thumbs"></div>
+      </div>
       <div class="product-detail-info" style="padding:0">
         <div class="det-category" id="modal-product-cat"></div>
         <h1 style="font-size:1.8rem" id="modal-product-name"></h1>
         <div class="stars">★★★★★ <span style="color:var(--text-muted);font-size:0.85rem">(24 reviews)</span></div>
         <div class="product-detail-price" id="modal-product-price"></div>
         <p class="det-desc" id="modal-product-desc"></p>
+        <div class="det-stock" id="modal-product-stock"></div>
         <div class="qty-selector">
           <button class="qty-btn" onclick="changeQty(-1)">−</button>
           <input class="qty-input" type="number" id="modal-qty" value="1" min="1" max="99">
@@ -858,7 +1004,7 @@
     </div>
     <div class="form-group"><label>Description</label><textarea rows="4" id="edit-desc"></textarea></div>
     <div class="form-row">
-      <div class="form-group"><label>Photo URL</label><input type="text" id="edit-photo" placeholder="https://..."></div>
+      <div class="form-group"><label>Photo URL(s)</label><input type="text" id="edit-photo" placeholder="https://photo-1..., https://photo-2..."></div>
       <div class="form-group"><label>Upload Photo</label><input type="file" id="edit-photo-file" accept="image/*" onchange="readProductPhoto(this,'edit-photo')"></div>
     </div>
     <div class="form-row">
@@ -890,6 +1036,15 @@
       <div class="hero-actions">
         <button class="btn-primary" onclick="scrollToShop()">Shop Now →</button>
         <button class="btn-secondary" onclick="scrollToAbout()">Our Story</button>
+      </div>
+      <form class="hero-search" onsubmit="submitHomeSearch(event)">
+        <input type="search" id="home-product-search" placeholder="Search keyrings, feeders, decor..." autocomplete="off">
+        <button class="btn-primary" type="submit">Search</button>
+      </form>
+      <div class="hero-search-hints">
+        <button type="button" onclick="searchFromHome('Keychains & Rings')">Keyrings</button>
+        <button type="button" onclick="searchFromHome('Smart Devices')">Smart devices</button>
+        <button type="button" onclick="searchFromHome('Home Decor')">Home decor</button>
       </div>
       <div class="hero-stats">
         <div class="stat-item"><h4>500+</h4><p>Products Sold</p></div>
@@ -1241,7 +1396,7 @@
                 <div class="form-group"><label>Print Material</label>
                   <select><option>PLA+</option><option>PETG</option><option>Resin</option><option>TPU</option></select>
                 </div>
-                <div class="form-group"><label>Stock Quantity</label><input type="number" placeholder="10" id="ap-stock"></div>
+                <div class="form-group"><label>Stock Quantity</label><input type="number" placeholder="24" id="ap-stock"></div>
               </div>
             </div>
             <div class="form-section">
@@ -1257,6 +1412,7 @@
           <div>
             <div class="form-section" style="margin-bottom:1rem">
               <h4>Product Images</h4>
+              <input type="text" id="ap-photo-urls" placeholder="Optional photo URL(s), comma separated" style="margin-bottom:12px">
               <input type="hidden" id="ap-photo">
               <input type="file" id="ap-photo-file" accept="image/*" style="display:none" onchange="readProductPhoto(this,'ap-photo')">
               <div class="upload-zone" onclick="document.getElementById('ap-photo-file').click()">
@@ -1566,17 +1722,54 @@ function hydrateProducts(){
   products.forEach((p, index) => {
     p.id = p.id || index + 1;
     p.photo = p.photo || '';
-    p.stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 10;
+    p.stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 24;
     p.status = p.status || 'Active';
     p.emoji = p.emoji || '3D';
+    p.photos = Array.isArray(p.photos) ? p.photos.filter(Boolean) : (typeof p.photos === 'string' ? p.photos.split(',').map(photo => photo.trim()).filter(Boolean) : []);
   });
   saveProducts();
 }
 function visibleProducts(){ return products.filter(p => p.status === 'Active'); }
 function getNewProducts(){ return visibleProducts().filter(p=>p.isNew); }
 function getTopProducts(){ return visibleProducts().filter(p=>p.isTop); }
+function photoListFrom(value) {
+  if(Array.isArray(value)) return value.map(photo => String(photo || '').trim()).filter(Boolean);
+  return String(value || '').split(',').map(photo => photo.trim()).filter(Boolean);
+}
 function productVisual(p, size='4rem') {
-  return p.photo ? `<img src="${esc(p.photo)}" alt="${esc(p.name)}">` : `<span style="font-size:${size};font-family:'Syne',sans-serif;font-weight:800;color:var(--queen-blue)">${esc(p.emoji || '3D')}</span>`;
+  const firstPhoto = [...photoListFrom(p.photos), ...photoListFrom(p.photo)][0];
+  return firstPhoto ? `<img src="${esc(firstPhoto)}" alt="${esc(p.name)}">` : `<span style="font-size:${size};font-family:'Syne',sans-serif;font-weight:800;color:var(--queen-blue)">${esc(p.emoji || '3D')}</span>`;
+}
+function getShortDescription(p) {
+  const text = String(p.shortDesc || p.desc || '').trim();
+  if(text.length <= 150) return text;
+  return text.slice(0, 147).trim() + '...';
+}
+function getProductGallery(p) {
+  const rawPhotos = [
+    ...photoListFrom(p.photos),
+    ...photoListFrom(p.photo)
+  ].map(photo => String(photo || '').trim()).filter(Boolean);
+  const photos = [...new Set(rawPhotos)];
+  if(photos.length) return photos.map(src => ({ type:'image', src, alt:p.name }));
+  const fallbackColors = ['var(--queen-blue-light)', 'var(--taupe-xlight)', 'rgba(72,209,204,0.18)'];
+  return fallbackColors.map((color, index) => ({ type:'fallback', color, icon:p.emoji || '3D', alt:p.name, index }));
+}
+function productGalleryVisual(item, size='5rem') {
+  if(item.type === 'image') return `<img src="${esc(item.src)}" alt="${esc(item.alt)}">`;
+  return `<span style="font-size:${size};font-family:'DM Sans',sans-serif;font-weight:400;color:var(--queen-blue)">${esc(item.icon)}</span>`;
+}
+function selectProductPhoto(index) {
+  const modal = document.getElementById('modal-product');
+  const gallery = JSON.parse(modal.dataset.gallery || '[]');
+  const item = gallery[index] || gallery[0];
+  if(!item) return;
+  const img = document.getElementById('modal-product-img');
+  img.innerHTML = productGalleryVisual(item, item.type === 'image' ? '1rem' : '5rem');
+  img.style.background = item.type === 'fallback' ? item.color : 'var(--smoke)';
+  document.querySelectorAll('#modal-product-thumbs .product-thumb').forEach((thumb, thumbIndex) => {
+    thumb.classList.toggle('active', thumbIndex === index);
+  });
 }
 function renderProductCard(p) {
   return `<div class="product-card" onclick="openProductModal(${p.id})">
@@ -1617,6 +1810,19 @@ function renderShopProducts() {
   });
   grid.innerHTML = filtered.length ? filtered.map(renderProductCard).join('') : '<p style="color:var(--text-muted)">No products found.</p>';
 }
+function searchFromHome(value) {
+  const homeInput = document.getElementById('home-product-search');
+  const shopInput = document.getElementById('shop-search');
+  const shopCategory = document.getElementById('shop-category');
+  if(homeInput) homeInput.value = value;
+  if(shopInput) shopInput.value = value;
+  if(shopCategory) shopCategory.value = '';
+  showPage('shop');
+}
+function submitHomeSearch(event) {
+  event.preventDefault();
+  searchFromHome(document.getElementById('home-product-search')?.value.trim() || '');
+}
 function renderAdminTable() {
   const tb = document.getElementById('admin-product-table');
   if(document.getElementById('admin-product-count')) document.getElementById('admin-product-count').textContent = products.length;
@@ -1653,13 +1859,19 @@ function scrollToShop() { showPage('shop'); }
 function openProductModal(id) {
   const p = products.find(x=>x.id===id);
   if(!p) return;
-  const img = document.getElementById('modal-product-img');
-  img.innerHTML = productVisual(p,'5rem');
-  img.style.fontSize = p.photo ? '1rem' : '5rem';
+  const gallery = getProductGallery(p);
+  document.getElementById('modal-product').dataset.gallery = JSON.stringify(gallery);
+  document.getElementById('modal-product-thumbs').innerHTML = gallery.map((item, index) => `
+    <button class="product-thumb ${index === 0 ? 'active' : ''}" type="button" onclick="selectProductPhoto(${index})" aria-label="Show product photo ${index + 1}">
+      ${productGalleryVisual(item, item.type === 'image' ? '1rem' : '1.65rem')}
+    </button>
+  `).join('');
+  selectProductPhoto(0);
   document.getElementById('modal-product-cat').textContent = p.cat;
   document.getElementById('modal-product-name').textContent = p.name;
   document.getElementById('modal-product-price').textContent = '$'+Number(p.price).toFixed(2)+' USD';
-  document.getElementById('modal-product-desc').textContent = p.desc;
+  document.getElementById('modal-product-desc').textContent = getShortDescription(p);
+  document.getElementById('modal-product-stock').textContent = Number(p.stock || 0)+' items in stock';
   document.getElementById('modal-product').dataset.productId = id;
   document.getElementById('modal-qty').value = 1;
   openModal('modal-product');
@@ -1698,22 +1910,173 @@ function renderCheckoutSummary() {
   document.getElementById('summary-subtotal').textContent = '$'+subtotal.toFixed(2);
   document.getElementById('summary-total-price').textContent = '$'+subtotal.toFixed(2);
 }
+function nameFromEmail(email) {
+  return String(email || '').split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) || 'Customer';
+}
+function ensureCustomerProfile(user) {
+  if(!user) return null;
+  const email = normalizeEmail(user.email);
+  const savedProfiles = JSON.parse(localStorage.getItem('dotCustomerProfiles') || '{}');
+  const saved = savedProfiles[email] || {};
+  return {
+    email,
+    firstName: user.firstName || saved.firstName || nameFromEmail(email).split(' ')[0] || '',
+    lastName: user.lastName || saved.lastName || nameFromEmail(email).split(' ').slice(1).join(' '),
+    phone: user.phone || saved.phone || '',
+    birthdate: user.birthdate || saved.birthdate || '',
+    gender: user.gender || saved.gender || '',
+    photo: user.photo || saved.photo || '',
+    shippingAddress: user.shippingAddress || saved.shippingAddress || '',
+    orders: Array.isArray(user.orders) ? user.orders : (Array.isArray(saved.orders) ? saved.orders : [])
+  };
+}
+function getCustomerName(user=currentUser) {
+  if(!user) return 'Customer';
+  return [user.firstName, user.lastName].filter(Boolean).join(' ') || nameFromEmail(user.email);
+}
+function avatarMarkup(user=currentUser, size='nav') {
+  const name = getCustomerName(user);
+  if(user && user.photo) return `<img src="${esc(user.photo)}" alt="${esc(name)}">`;
+  return esc(name.charAt(0).toUpperCase() || 'C');
+}
+function persistCustomerProfile() {
+  if(!currentUser || !currentUser.email) return;
+  const savedProfiles = JSON.parse(localStorage.getItem('dotCustomerProfiles') || '{}');
+  savedProfiles[normalizeEmail(currentUser.email)] = currentUser;
+  localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
+  saveCurrentUser();
+}
 function updateAuthUI() {
   const btn = document.querySelector('.btn-nav-signin');
-  if(!btn) return;
+  const chip = document.getElementById('account-chip');
+  if(!btn || !chip) return;
+  if(currentUser) currentUser = ensureCustomerProfile(currentUser);
   if(currentUser) {
-    btn.textContent = 'My Account';
-    btn.onclick = () => isAdminEmail(currentUser.email) ? showPage('admin') : showToast('Signed in as '+currentUser.email);
+    btn.style.display = 'none';
+    chip.style.display = 'inline-flex';
+    document.getElementById('nav-account-photo').innerHTML = avatarMarkup(currentUser);
+    document.getElementById('nav-account-name').textContent = getCustomerName(currentUser);
+    persistCustomerProfile();
   } else {
+    btn.style.display = 'inline-flex';
     btn.textContent = 'Sign In';
     btn.onclick = () => openModal('modal-signin');
+    chip.style.display = 'none';
   }
+}
+function openAccountModal() {
+  if(!currentUser) { openModal('modal-signin'); return; }
+  document.getElementById('account-subtitle').textContent = getCustomerName()+' - '+currentUser.email;
+  openModal('modal-account');
+  showAccountTab('profile');
+}
+function normalizedCustomerOrders() {
+  const orderList = Array.isArray(currentUser?.orders) ? currentUser.orders : [];
+  return orderList.map((order, index) => {
+    if(typeof order === 'string') {
+      return { id: 'Order '+(index + 1), items: order, total: '', status: 'To Review' };
+    }
+    return {
+      id: order.id || order.number || 'Order '+(index + 1),
+      items: order.items || order.summary || 'DotProject product',
+      total: order.total || '',
+      status: order.status || 'To Pay'
+    };
+  });
+}
+function renderMyOrders() {
+  const statuses = ['To Pay', 'To Ship', 'Shipped', 'To Review', 'Return'];
+  const orders = normalizedCustomerOrders();
+  const statusCards = statuses.map(status => {
+    const count = orders.filter(order => order.status === status).length;
+    return `<div class="order-status-card"><strong>${count}</strong><span>${status}</span></div>`;
+  }).join('');
+  const rows = orders.map(order => `
+    <div class="order-list-row">
+      <div>
+        <strong>${esc(order.id)}</strong>
+        <small>${esc(order.items)}${order.total ? ' - '+esc(order.total) : ''}</small>
+      </div>
+      <span class="status-badge status-active">${esc(order.status)}</span>
+    </div>
+  `).join('');
+  return `
+    <h3 style="margin-bottom:1rem">My Order</h3>
+    <div class="order-status-grid">${statusCards}</div>
+    <div class="order-list">${rows || '<div class="account-empty">No orders yet. Your order updates will appear here.</div>'}</div>
+  `;
+}
+function showAccountTab(tab, clickedButton) {
+  document.querySelectorAll('.account-menu button').forEach(btn => btn.classList.toggle('active', btn.dataset.accountTab === tab));
+  if(clickedButton) clickedButton.classList.add('active');
+  const panel = document.getElementById('account-panel');
+  if(tab === 'profile') {
+    panel.innerHTML = `
+      <div class="profile-photo-row">
+        <div class="profile-photo" id="profile-photo-preview">${avatarMarkup(currentUser,'profile')}</div>
+        <div>
+          <input type="hidden" id="profile-photo-value" value="${esc(currentUser.photo || '')}">
+          <input type="file" id="profile-photo-file" accept="image/*" style="display:none" onchange="readCustomerPhoto(this)">
+          <button class="btn-outline-dark" type="button" onclick="document.getElementById('profile-photo-file').click()">Change Image</button>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>First name</label><input type="text" id="profile-first-name" value="${esc(currentUser.firstName || '')}"></div>
+        <div class="form-group"><label>Last name</label><input type="text" id="profile-last-name" value="${esc(currentUser.lastName || '')}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Phone number</label><input type="tel" id="profile-phone" value="${esc(currentUser.phone || '')}" placeholder="+880 1XXXXXXXXX"></div>
+        <div class="form-group"><label>Gmail</label><input type="email" id="profile-email" value="${esc(currentUser.email || '')}" disabled></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Birthdate</label><input type="date" id="profile-birthdate" value="${esc(currentUser.birthdate || '')}"></div>
+        <div class="form-group"><label>Gender</label><select id="profile-gender"><option value="">Select</option><option value="Male" ${currentUser.gender === 'Male' ? 'selected' : ''}>Male</option><option value="Female" ${currentUser.gender === 'Female' ? 'selected' : ''}>Female</option></select></div>
+      </div>
+      <button class="btn-primary" type="button" onclick="saveCustomerProfile()">Save Profile</button>
+    `;
+  }
+  if(tab === 'orders') {
+    panel.innerHTML = renderMyOrders();
+  }
+  if(tab === 'shipping') {
+    panel.innerHTML = `<h3 style="margin-bottom:1rem">Shipping Address</h3><div class="form-group"><label>Address</label><textarea id="profile-shipping-address" rows="5" placeholder="House, road, area, city">${esc(currentUser.shippingAddress || '')}</textarea></div><button class="btn-primary" type="button" onclick="saveShippingAddress()">Save Address</button>`;
+  }
+  if(tab === 'cart') {
+    panel.innerHTML = `<h3 style="margin-bottom:1rem">Product Cart</h3><div class="account-empty">${cart.length ? cart.map(c => `${esc(c.name)} x${c.qty} - $${(c.price*c.qty).toFixed(2)}`).join('<br>') : 'Your product cart is empty.'}</div><button class="btn-outline-dark" style="margin-top:1rem" type="button" onclick="closeModal('modal-account');toggleCart()">Open Cart</button>`;
+  }
+}
+function readCustomerPhoto(input) {
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    document.getElementById('profile-photo-value').value = reader.result;
+    document.getElementById('profile-photo-preview').innerHTML = `<img src="${reader.result}" alt="${esc(getCustomerName())}">`;
+  };
+  reader.readAsDataURL(file);
+}
+function saveCustomerProfile() {
+  currentUser.firstName = document.getElementById('profile-first-name').value.trim();
+  currentUser.lastName = document.getElementById('profile-last-name').value.trim();
+  currentUser.phone = document.getElementById('profile-phone').value.trim();
+  currentUser.birthdate = document.getElementById('profile-birthdate').value;
+  currentUser.gender = document.getElementById('profile-gender').value;
+  currentUser.photo = document.getElementById('profile-photo-value').value;
+  persistCustomerProfile();
+  updateAuthUI();
+  document.getElementById('account-subtitle').textContent = getCustomerName()+' - '+currentUser.email;
+  showToast('Profile updated.');
+}
+function saveShippingAddress() {
+  currentUser.shippingAddress = document.getElementById('profile-shipping-address').value.trim();
+  persistCustomerProfile();
+  showToast('Shipping address saved.');
 }
 function handleSignin() {
   const email = normalizeEmail(document.getElementById('signin-email').value);
   if(!email) { showToast('Please enter your email.'); return; }
-  currentUser = { email };
-  saveCurrentUser();
+  currentUser = ensureCustomerProfile({ email });
+  persistCustomerProfile();
   closeModal('modal-signin');
   updateAuthUI();
   if(isAdminEmail(email)) {
@@ -1721,17 +2084,23 @@ function handleSignin() {
     showPage('admin');
   } else {
     showToast('Welcome back!');
+    openAccountModal();
   }
 }
 function handleSignup() {
   const email = normalizeEmail(document.getElementById('signup-email').value);
   const password = document.getElementById('signup-password').value;
   if(!email || password.length < 6) { showToast('Enter email and a 6+ character password.'); return; }
-  currentUser = { email };
-  saveCurrentUser();
+  currentUser = ensureCustomerProfile({
+    email,
+    firstName: document.getElementById('signup-first-name').value.trim(),
+    lastName: document.getElementById('signup-last-name').value.trim()
+  });
+  persistCustomerProfile();
   closeModal('modal-signup');
   updateAuthUI();
   showToast('Account created! Welcome to DotProject.');
+  openAccountModal();
 }
 function openResetPassword() {
   closeModal('modal-signin');
@@ -1834,15 +2203,15 @@ function adminAddProduct() {
   const price = parseFloat(document.getElementById('ap-price').value) || 0;
   const cat = document.getElementById('ap-cat').value;
   const emoji = document.getElementById('preview-emoji').textContent || '3D';
-  const stock = parseInt(document.getElementById('ap-stock').value) || 0;
-  const photo = document.getElementById('ap-photo').value;
+  const stock = parseInt(document.getElementById('ap-stock').value) || 24;
+  const photo = document.getElementById('ap-photo-urls').value.trim() || document.getElementById('ap-photo').value;
   const status = document.getElementById('ap-status').value;
   if(!name || !desc || !price) { showToast('Please fill all required fields.'); return; }
   products.push({ id: Date.now(), name, cat, price, emoji, photo, desc, stock, status, isNew:true, isTop:false });
   saveProducts();
   renderGrids();
   showToast('Product "'+name+'" published!');
-  ['ap-name','ap-desc','ap-price','ap-stock','ap-photo'].forEach(id => document.getElementById(id).value='');
+  ['ap-name','ap-desc','ap-price','ap-stock','ap-photo','ap-photo-urls'].forEach(id => document.getElementById(id).value='');
 }
 
 // ================== TOAST ==================
