@@ -11,11 +11,21 @@ const products = [
 ];
 
 let cart = [];
-const SUPER_ADMIN_EMAIL = 'superadmin@gmail.com';
+const SUPER_ADMIN_EMAIL = 'sagorsharif27@gmail.com';
 const BKASH_PERSONAL_NUMBER = '0175047924';
 const NAGAD_PERSONAL_NUMBER = '0175047924';
 let currentUser = JSON.parse(localStorage.getItem('dotCurrentUser') || 'null');
 let adminEmails = JSON.parse(localStorage.getItem('dotAdminEmails') || 'null') || [SUPER_ADMIN_EMAIL];
+const ALL_ADMIN_PERMISSIONS = ['dashboard','addProduct','products','editProduct','stock','orders','orderStatus'];
+let adminPermissions = JSON.parse(localStorage.getItem('dotAdminPermissions') || 'null') || {};
+let adminOrders = JSON.parse(localStorage.getItem('dotAdminOrders') || 'null') || [
+  { id:'DP-0064', customer:'Rafiq Ahmed', items:'Auto Cat Feeder x1', total:49, date:'Jun 08', status:'In Process' },
+  { id:'DP-0063', customer:'Nusrat Jahan', items:'Custom Keyring x3', total:24, date:'Jun 07', status:'Shipped' },
+  { id:'DP-0062', customer:'Tanvir Islam', items:'Fish Auto Feeder x1', total:35, date:'Jun 06', status:'Pending' },
+  { id:'DP-0061', customer:'Sadia Hossain', items:'Mini Shelf x2', total:18, date:'Jun 05', status:'Delivered' }
+];
+let invoices = JSON.parse(localStorage.getItem('dotInvoices') || 'null') || {};
+let lastInvoiceId = localStorage.getItem('dotLastInvoiceId') || '';
 let resetCode = '';
 let resetEmail = '';
 
@@ -251,6 +261,101 @@ function validatePaymentDetails() {
   }
   return true;
 }
+function createInvoiceRecord(order) {
+  const invoiceId = order.invoiceId || ('INV-' + order.id.replace(/^DP-/, ''));
+  const invoice = {
+    id: invoiceId,
+    orderId: order.id,
+    customer: order.customer || 'Customer',
+    email: order.email || '',
+    phone: order.phone || '',
+    date: order.date || new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' }),
+    items: order.items || '',
+    total: Number(order.total || 0),
+    status: order.status || 'Pending',
+    source: order.source || 'Online'
+  };
+  invoices[invoiceId] = invoice;
+  saveInvoices();
+  rememberLastInvoice(invoiceId);
+  return invoice;
+}
+function pdfSafe(value) {
+  return String(value ?? '').replace(/[^\x20-\x7E]/g, ' ').replace(/[\\()]/g, '\\$&');
+}
+function wrapPdfText(value, maxLength=74) {
+  const words = String(value || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  words.forEach(word => {
+    const next = line ? line + ' ' + word : word;
+    if(next.length > maxLength && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  });
+  if(line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+function invoicePdfBlob(invoice) {
+  const lines = [
+    { text:'DotProject', size:20, x:50, y:780 },
+    { text:'Invoice', size:26, x:50, y:748 },
+    { text:invoice.id, size:12, x:410, y:780 },
+    { text:'Order #'+invoice.orderId, size:11, x:410, y:760 },
+    { text:invoice.date, size:11, x:410, y:744 },
+    { text:'Bill To', size:14, x:50, y:700 },
+    { text:invoice.customer || 'Customer', size:11, x:50, y:680 },
+    { text:invoice.phone ? 'Phone: '+invoice.phone : '', size:11, x:50, y:664 },
+    { text:invoice.email ? 'Email: '+invoice.email : '', size:11, x:50, y:648 },
+    { text:'Status: '+(invoice.status || 'Pending'), size:11, x:50, y:612 },
+    { text:'Source: '+(invoice.source || 'Online'), size:11, x:50, y:596 },
+    { text:'Products', size:14, x:50, y:552 }
+  ].filter(line => line.text);
+  let y = 528;
+  wrapPdfText(invoice.items, 80).forEach(itemLine => {
+    lines.push({ text:itemLine, size:11, x:50, y });
+    y -= 16;
+  });
+  lines.push({ text:'Grand Total: $'+Number(invoice.total || 0).toFixed(2), size:16, x:350, y:y-24 });
+  lines.push({ text:'Thank you for ordering from DotProject.', size:11, x:50, y:y-70 });
+  const textStream = lines.map(line => `BT /F1 ${line.size} Tf ${line.x} ${line.y} Td (${pdfSafe(line.text)}) Tj ET`).join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${textStream.length} >>\nstream\n${textStream}\nendstream`
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach(offset => {
+    pdf += String(offset).padStart(10, '0') + ' 00000 n \n';
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+function downloadInvoice(invoiceId) {
+  const invoice = invoices[invoiceId] || invoices[lastInvoiceId];
+  if(!invoice) { showToast('No invoice found.'); return; }
+  const blob = invoicePdfBlob(invoice);
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = invoice.id + '.pdf';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 function renderCheckoutSummary() {
   const container = document.getElementById('checkout-summary-items');
@@ -277,6 +382,39 @@ function placeOrder() {
   updateCheckoutSteps('confirm');
   const num = 'DP-' + String(Math.floor(Math.random()*9000)+1000);
   document.getElementById('success-order-num').textContent = 'Order #'+num;
+  const orderTotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.qty || 0)), 0);
+  const paymentMethod = getSelectedPaymentMethod();
+  const orderItems = cart.map(item => item.name+' x'+item.qty).join(', ');
+  const orderDate = new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' });
+  const orderRecord = {
+    id: num,
+    customer: getCustomerName(),
+    email: currentUser?.email || '',
+    phone: currentUser?.phone || '',
+    items: orderItems,
+    total: orderTotal,
+    date: orderDate,
+    status: 'Pending',
+    source: 'Online'
+  };
+  const invoice = createInvoiceRecord(orderRecord);
+  orderRecord.invoiceId = invoice.id;
+  adminOrders.unshift({...orderRecord, date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit' })});
+  saveAdminOrders();
+  if(currentUser) {
+    currentUser.orders = Array.isArray(currentUser.orders) ? currentUser.orders : [];
+    currentUser.orders.unshift({
+      id: num,
+      items: orderItems,
+      total: '$'+orderTotal.toFixed(2),
+      status: paymentMethod === 'cod' ? 'To Ship' : 'To Pay',
+      date: orderDate,
+      invoiceId: invoice.id,
+      source: 'Online',
+      payment: paymentMethod
+    });
+    persistCustomerProfile();
+  }
   cart = [];
   updateCartUI();
   showPage('success');
@@ -307,15 +445,23 @@ function handleSignup() {
 
 // ================== ADMIN ==================
 function switchAdmin(section, el) {
+  const permissionMap = { dashboard:'dashboard', 'add-product':'addProduct', products:'products', stock:'stock', orders:'orders' };
+  if(!canAdmin(permissionMap[section] || section)) {
+    showToast('This admin account does not have access to '+section+'.');
+    return;
+  }
   document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));
-  el.classList.add('active');
-  ['dashboard','add-product','products','orders'].forEach(s=>{
+  if(el) el.classList.add('active');
+  ['dashboard','add-product','products','stock','orders'].forEach(s=>{
     const el = document.getElementById('admin-'+s);
     if(el) el.style.display = 'none';
   });
   const target = document.getElementById('admin-'+section);
   if(target) target.style.display = 'block';
   if(section==='products') renderAdminTable();
+  if(section==='stock') renderStockTable();
+  if(section==='orders') { renderAdminOrders(); setManualInvoiceDate(); }
+  if(section==='dashboard') renderAdminDashboard();
 }
 
 function adminAddProduct() {
@@ -337,12 +483,33 @@ function adminAddProduct() {
 function normalizeEmail(email){ return (email || '').trim().toLowerCase(); }
 function isGmail(email){ return /^[^\s@]+@gmail\.com$/i.test(email || ''); }
 function isSuperAdmin(){ return currentUser && normalizeEmail(currentUser.email) === SUPER_ADMIN_EMAIL; }
+function migrateAdminAccess(){
+  adminEmails = Array.from(new Set([SUPER_ADMIN_EMAIL, ...adminEmails.map(normalizeEmail).filter(Boolean)]));
+  adminPermissions[SUPER_ADMIN_EMAIL] = ALL_ADMIN_PERMISSIONS;
+  adminEmails.forEach(email => {
+    const normalized = normalizeEmail(email);
+    if(!adminPermissions[normalized]) adminPermissions[normalized] = normalized === SUPER_ADMIN_EMAIL ? ALL_ADMIN_PERMISSIONS : ['dashboard','products','orders'];
+  });
+  saveAdmins();
+  saveAdminPermissions();
+}
 function isAdminEmail(email){ return adminEmails.map(normalizeEmail).includes(normalizeEmail(email)); }
+function getAdminPermissions(email=currentUser?.email){
+  const normalized = normalizeEmail(email);
+  if(normalized === SUPER_ADMIN_EMAIL) return ALL_ADMIN_PERMISSIONS;
+  return adminPermissions[normalized] || [];
+}
+function canAdmin(permission){ return isSuperAdmin() || getAdminPermissions().includes(permission); }
 function saveProducts(){ localStorage.setItem('dotProducts', JSON.stringify(products)); }
 function saveAdmins(){ localStorage.setItem('dotAdminEmails', JSON.stringify(adminEmails)); }
+function saveAdminPermissions(){ localStorage.setItem('dotAdminPermissions', JSON.stringify(adminPermissions)); }
+function saveAdminOrders(){ localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders)); }
+function saveInvoices(){ localStorage.setItem('dotInvoices', JSON.stringify(invoices)); }
+function rememberLastInvoice(id){ lastInvoiceId = id; localStorage.setItem('dotLastInvoiceId', id); }
 function saveCurrentUser(){ localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser)); }
 function esc(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 function hydrateProducts(){
+  migrateAdminAccess();
   const saved = JSON.parse(localStorage.getItem('dotProducts') || 'null');
   if(saved && Array.isArray(saved)) products.splice(0, products.length, ...saved);
   products.forEach((p, index) => {
@@ -512,14 +679,125 @@ function renderAdminTable() {
   const tb = document.getElementById('admin-product-table');
   if(document.getElementById('admin-product-count')) document.getElementById('admin-product-count').textContent = products.length;
   if(!tb) return;
-  tb.innerHTML = products.map(p=>`<tr>
+  const query = (document.getElementById('admin-product-search')?.value || '').trim().toLowerCase();
+  const filtered = products.filter(p => !query || [p.name,p.cat,p.desc,p.status].join(' ').toLowerCase().includes(query));
+  tb.innerHTML = filtered.map(p=>`<tr>
     <td><span class="admin-thumb">${productVisual(p,'1rem')}</span><strong>${esc(p.name)}</strong></td>
     <td>${esc(p.cat)}</td>
     <td>$${Number(p.price).toFixed(2)}</td>
     <td>${Number(p.stock || 0)}</td>
     <td><span class="status-badge ${p.status === 'Active' ? 'status-active' : 'status-low'}">${esc(p.status || 'Active')}</span></td>
-    <td><button class="btn-outline-dark" style="padding:5px 12px;font-size:0.75rem" onclick="openEditProduct(${p.id})">Edit</button></td>
+    <td><button class="btn-outline-dark ${canAdmin('editProduct') ? '' : 'admin-denied'}" style="padding:5px 12px;font-size:0.75rem" onclick="openEditProduct(${p.id})">Edit</button></td>
   </tr>`).join('');
+  renderStockTable();
+  renderAdminDashboard();
+  renderAdminOrders();
+  applyAdminPermissions();
+}
+function statusClass(status) {
+  return ['Active','Delivered','Shipped','In Process'].includes(status) ? 'status-active' : 'status-low';
+}
+function renderStockTable() {
+  const tb = document.getElementById('admin-stock-table');
+  if(!tb) return;
+  const query = (document.getElementById('admin-stock-search')?.value || '').trim().toLowerCase();
+  const filtered = products.filter(p => !query || [p.name,p.cat,p.status].join(' ').toLowerCase().includes(query));
+  tb.innerHTML = filtered.map(p => {
+    const stock = Number(p.stock || 0);
+    const stockStatus = stock <= 0 ? 'Out of Stock' : stock <= 5 ? 'Low Stock' : 'In Stock';
+    return `<tr>
+      <td><span class="admin-thumb">${productVisual(p,'1rem')}</span><strong>${esc(p.name)}</strong></td>
+      <td>${esc(p.cat)}</td>
+      <td>${stock}</td>
+      <td><span class="status-badge ${stock <= 5 ? 'status-low' : 'status-active'}">${stockStatus}</span></td>
+      <td><div class="admin-row-actions"><input class="admin-inline-input" type="number" min="0" id="stock-${p.id}" value="${stock}"><button class="btn-outline-dark ${canAdmin('stock') ? '' : 'admin-denied'}" style="padding:6px 10px;font-size:0.75rem" onclick="updateProductStock(${p.id})">Save</button></div></td>
+    </tr>`;
+  }).join('');
+}
+function renderAdminOrders() {
+  const table = document.getElementById('admin-order-table');
+  const recent = document.getElementById('admin-recent-orders');
+  setManualInvoiceDate();
+  const rows = adminOrders.map(order => `<tr>
+    <td><strong>#${esc(order.id)}</strong></td>
+    <td>${esc(order.customer)}</td>
+    <td>${esc(order.items)}</td>
+    <td>$${Number(order.total).toFixed(2)}</td>
+    <td>${esc(order.date)}</td>
+    <td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
+    <td><div class="order-row-actions"><select class="admin-inline-select ${canAdmin('orderStatus') ? '' : 'admin-denied'}" onchange="updateOrderStatus('${esc(order.id)}', this.value)">
+      ${['Pending','In Process','Printing','Shipped','Delivered','Cancelled'].map(status => `<option ${order.status === status ? 'selected' : ''}>${status}</option>`).join('')}
+    </select><button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="downloadInvoice('${esc(order.invoiceId || '')}')">Invoice</button></div></td>
+  </tr>`).join('');
+  if(table) table.innerHTML = rows;
+  if(recent) recent.innerHTML = adminOrders.slice(0,4).map(order => `<tr>
+    <td>#${esc(order.id)}</td><td>${esc(order.customer)}</td><td>${esc(order.items)}</td><td>$${Number(order.total).toFixed(2)}</td><td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
+  </tr>`).join('');
+}
+function setManualInvoiceDate() {
+  const dateInput = document.getElementById('manual-invoice-date');
+  if(dateInput && !dateInput.value) dateInput.valueAsDate = new Date();
+}
+function createManualInvoice() {
+  if(!canAdmin('orders')) { showToast('This admin account cannot create invoices.'); return; }
+  const name = document.getElementById('manual-invoice-name')?.value.trim();
+  const phone = document.getElementById('manual-invoice-phone')?.value.trim();
+  const email = document.getElementById('manual-invoice-email')?.value.trim();
+  const dateValue = document.getElementById('manual-invoice-date')?.value;
+  const items = document.getElementById('manual-invoice-items')?.value.trim();
+  const total = Number(document.getElementById('manual-invoice-total')?.value || 0);
+  const status = document.getElementById('manual-invoice-status')?.value || 'Pending';
+  if(!name || !phone || !items || !total) {
+    showToast('Please enter customer, phone, products, and total.');
+    return;
+  }
+  const id = 'DP-M' + Date.now().toString().slice(-6);
+  const date = dateValue ? new Date(dateValue+'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' }) : new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' });
+  const order = { id, customer:name, email, phone, items, total, date, status, source:'Manual' };
+  const invoice = createInvoiceRecord(order);
+  order.invoiceId = invoice.id;
+  adminOrders.unshift({...order, date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit' })});
+  saveAdminOrders();
+  ['manual-invoice-name','manual-invoice-phone','manual-invoice-email','manual-invoice-items','manual-invoice-total'].forEach(id => {
+    const field = document.getElementById(id);
+    if(field) field.value = '';
+  });
+  const dateInput = document.getElementById('manual-invoice-date');
+  if(dateInput) dateInput.valueAsDate = new Date();
+  renderAdminOrders();
+  renderAdminDashboard();
+  showToast('Manual invoice created.');
+  downloadInvoice(invoice.id);
+}
+function renderAdminDashboard() {
+  const totalRevenue = adminOrders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const pendingCount = adminOrders.filter(order => order.status === 'Pending').length;
+  const revenueEl = document.getElementById('admin-total-revenue');
+  const ordersEl = document.getElementById('admin-total-orders');
+  const pendingEl = document.getElementById('admin-pending-orders');
+  if(revenueEl) revenueEl.textContent = '$'+totalRevenue.toFixed(2);
+  if(ordersEl) ordersEl.textContent = adminOrders.length;
+  if(pendingEl) pendingEl.textContent = pendingCount;
+}
+function applyAdminPermissions() {
+  document.querySelectorAll('[data-admin-permission]').forEach(item => {
+    const allowed = canAdmin(item.dataset.adminPermission);
+    item.style.display = allowed ? 'flex' : 'none';
+  });
+  const addPanel = document.getElementById('admin-add-product');
+  if(addPanel) addPanel.classList.toggle('admin-denied', !canAdmin('addProduct'));
+}
+function openDefaultAdminSection() {
+  const sectionMap = [
+    ['dashboard','dashboard'],
+    ['addProduct','add-product'],
+    ['products','products'],
+    ['stock','stock'],
+    ['orders','orders']
+  ];
+  const target = sectionMap.find(([permission]) => canAdmin(permission)) || sectionMap[0];
+  const navItem = document.querySelector(`[data-admin-permission="${target[0]}"]`);
+  switchAdmin(target[1], navItem);
 }
 function showPage(id) {
   if(id === 'admin' && (!currentUser || !isAdminEmail(currentUser.email))) {
@@ -546,9 +824,14 @@ function showPage(id) {
   }
   if(id==='shop') renderShopProducts();
   if(id==='admin') {
+    applyAdminPermissions();
     renderAdminTable();
     renderAdminAccess();
+    renderStockTable();
+    renderAdminOrders();
+    renderAdminDashboard();
     document.getElementById('admin-current-user').textContent = currentUser.email;
+    openDefaultAdminSection();
   }
   closeAllModals();
 }
@@ -671,35 +954,63 @@ function normalizedCustomerOrders() {
   const orderList = Array.isArray(currentUser?.orders) ? currentUser.orders : [];
   return orderList.map((order, index) => {
     if(typeof order === 'string') {
-      return { id: 'Order '+(index + 1), items: order, total: '', status: 'To Review' };
+      return { id: 'Order '+(index + 1), items: order, total: '', status: 'To Review', date: '', invoiceId: '', source: 'Online', payment: '' };
     }
     return {
       id: order.id || order.number || 'Order '+(index + 1),
       items: order.items || order.summary || 'DotProject product',
       total: order.total || '',
-      status: order.status || 'To Pay'
+      status: order.status || 'To Pay',
+      date: order.date || '',
+      invoiceId: order.invoiceId || '',
+      source: order.source || 'Online',
+      payment: order.payment || ''
     };
   });
 }
+let activeOrderFilter = 'All';
+function showCustomerOrders(status) {
+  activeOrderFilter = status || 'All';
+  const panel = document.getElementById('account-panel');
+  if(panel) panel.innerHTML = renderMyOrders();
+}
+function toggleOrderDetail(orderId) {
+  const detail = document.getElementById('order-detail-'+String(orderId).replace(/[^a-z0-9_-]/gi, '-'));
+  if(detail) detail.classList.toggle('hidden');
+}
 function renderMyOrders() {
-  const statuses = ['To Pay', 'To Ship', 'Shipped', 'To Review', 'Return'];
+  const statuses = ['All', 'To Pay', 'To Ship', 'Shipped'];
   const orders = normalizedCustomerOrders();
   const statusCards = statuses.map(status => {
-    const count = orders.filter(order => order.status === status).length;
-    return `<div class="order-status-card"><strong>${count}</strong><span>${status}</span></div>`;
+    const count = status === 'All' ? orders.length : orders.filter(order => order.status === status).length;
+    return `<button class="order-status-card ${activeOrderFilter === status ? 'active' : ''}" type="button" onclick="showCustomerOrders('${esc(status)}')"><strong>${count}</strong><span>${status}</span></button>`;
   }).join('');
-  const rows = orders.map(order => `
+  const filteredOrders = activeOrderFilter === 'All' ? orders : orders.filter(order => order.status === activeOrderFilter);
+  const rows = filteredOrders.map(order => {
+    const detailId = 'order-detail-'+String(order.id).replace(/[^a-z0-9_-]/gi, '-');
+    return `
     <div class="order-list-row">
       <div>
         <strong>${esc(order.id)}</strong>
-        <small>${esc(order.items)}${order.total ? ' - '+esc(order.total) : ''}</small>
+        <small>${esc(order.date || 'Order history')} - ${esc(order.items)}${order.total ? ' - '+esc(order.total) : ''}</small>
       </div>
-      <span class="status-badge status-active">${esc(order.status)}</span>
+      <div class="order-row-actions">
+        <span class="status-badge status-active">${esc(order.status)}</span>
+        <button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="toggleOrderDetail('${esc(order.id)}')">Details</button>
+        <button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="downloadInvoice('${esc(order.invoiceId)}')">Invoice</button>
+      </div>
+      <div class="order-detail-box hidden" id="${esc(detailId)}">
+        Products: ${esc(order.items)}<br>
+        Total: ${esc(order.total || '$0.00')}<br>
+        Status: ${esc(order.status)}<br>
+        Source: ${esc(order.source)}${order.payment ? '<br>Payment: '+esc(order.payment) : ''}
+      </div>
     </div>
-  `).join('');
+  `}).join('');
   return `
     <h3 style="margin-bottom:1rem">My Order</h3>
     <div class="order-status-grid">${statusCards}</div>
+    <h3 style="margin:1.5rem 0 1rem">Order History</h3>
     <div class="order-list">${rows || '<div class="account-empty">No orders yet. Your order updates will appear here.</div>'}</div>
   `;
 }
@@ -841,24 +1152,45 @@ function renderAdminAccess() {
   const list = document.getElementById('admin-access-list');
   if(panel) panel.style.display = isSuperAdmin() ? 'block' : 'none';
   if(!list) return;
-  list.innerHTML = adminEmails.map(email => `<span class="admin-email-chip">${esc(email)}${normalizeEmail(email) === SUPER_ADMIN_EMAIL ? '' : `<button onclick="removeAdminAccess('${esc(email)}')">X</button>`}</span>`).join('');
+  list.innerHTML = adminEmails.map(email => {
+    const normalized = normalizeEmail(email);
+    const roleText = normalized === SUPER_ADMIN_EMAIL ? 'Super admin - full access' : getAdminPermissions(normalized).join(', ');
+    return `<span class="admin-email-chip">${esc(normalized)} <small class="admin-role-note">${esc(roleText)}</small>${normalized === SUPER_ADMIN_EMAIL ? '' : `<button onclick="loadAdminForEdit('${esc(normalized)}')">Edit</button><button onclick="removeAdminAccess('${esc(normalized)}')">X</button>`}</span>`;
+  }).join('');
 }
 function grantAdminAccess() {
   if(!isSuperAdmin()) { showToast('Only super admin can grant admin access.'); return; }
   const email = normalizeEmail(document.getElementById('grant-admin-email').value);
   if(!isGmail(email)) { showToast('Please enter a Gmail address.'); return; }
+  if(email === SUPER_ADMIN_EMAIL) { showToast('Super admin already has full access.'); return; }
+  const selectedPermissions = Array.from(document.querySelectorAll('.grant-permission:checked')).map(input => input.value);
+  if(selectedPermissions.length === 0) { showToast('Select at least one permission.'); return; }
   if(!isAdminEmail(email)) adminEmails.push(email);
+  adminPermissions[email] = selectedPermissions;
   saveAdmins();
+  saveAdminPermissions();
   document.getElementById('grant-admin-email').value = '';
   renderAdminAccess();
-  showToast('Admin access granted to '+email+'.');
+  showToast('Admin access saved for '+email+'.');
 }
 function removeAdminAccess(email) {
   if(!isSuperAdmin()) return;
   adminEmails = adminEmails.filter(e => normalizeEmail(e) !== normalizeEmail(email) || normalizeEmail(e) === SUPER_ADMIN_EMAIL);
+  delete adminPermissions[normalizeEmail(email)];
   saveAdmins();
+  saveAdminPermissions();
   renderAdminAccess();
   showToast('Admin access removed.');
+}
+function loadAdminForEdit(email) {
+  if(!isSuperAdmin()) return;
+  const normalized = normalizeEmail(email);
+  document.getElementById('grant-admin-email').value = normalized;
+  const permissions = getAdminPermissions(normalized);
+  document.querySelectorAll('.grant-permission').forEach(input => {
+    input.checked = permissions.includes(input.value);
+  });
+  showToast('Loaded permissions for '+normalized+'.');
 }
 function readProductPhoto(input, targetId) {
   const file = input.files && input.files[0];
@@ -871,6 +1203,7 @@ function readProductPhoto(input, targetId) {
   reader.readAsDataURL(file);
 }
 function openEditProduct(id) {
+  if(!canAdmin('editProduct')) { showToast('This admin account cannot edit products.'); return; }
   const p = products.find(x=>x.id===id);
   if(!p) return;
   document.getElementById('edit-product-id').value = p.id;
@@ -886,6 +1219,7 @@ function openEditProduct(id) {
   openModal('modal-edit-product');
 }
 function saveProductEdit() {
+  if(!canAdmin('editProduct')) { showToast('This admin account cannot save product edits.'); return; }
   const id = parseInt(document.getElementById('edit-product-id').value);
   const p = products.find(x=>x.id===id);
   if(!p) return;
@@ -905,6 +1239,7 @@ function saveProductEdit() {
   showToast('Product updated.');
 }
 function adminAddProduct() {
+  if(!canAdmin('addProduct')) { showToast('This admin account cannot add products.'); return; }
   const name = document.getElementById('ap-name').value.trim();
   const desc = document.getElementById('ap-desc').value.trim();
   const price = parseFloat(document.getElementById('ap-price').value) || 0;
@@ -919,6 +1254,46 @@ function adminAddProduct() {
   renderGrids();
   showToast('Product "'+name+'" published!');
   ['ap-name','ap-desc','ap-price','ap-stock','ap-photo','ap-photo-urls'].forEach(id => document.getElementById(id).value='');
+}
+function updateProductStock(id) {
+  if(!canAdmin('stock')) { showToast('This admin account cannot update stock.'); return; }
+  const product = products.find(p => p.id === id);
+  if(!product) return;
+  const nextStock = parseInt(document.getElementById('stock-'+id)?.value) || 0;
+  product.stock = Math.max(0, nextStock);
+  product.status = product.stock <= 0 ? 'Out of Stock' : 'Active';
+  saveProducts();
+  renderGrids();
+  renderStockTable();
+  showToast('Stock updated for '+product.name+'.');
+}
+function updateOrderStatus(id, status) {
+  if(!canAdmin('orderStatus')) { showToast('This admin account cannot update orders.'); renderAdminOrders(); return; }
+  const order = adminOrders.find(item => item.id === id);
+  if(!order) return;
+  order.status = status;
+  if(order.invoiceId && invoices[order.invoiceId]) {
+    invoices[order.invoiceId].status = status;
+    saveInvoices();
+  }
+  const customerProfiles = JSON.parse(localStorage.getItem('dotCustomerProfiles') || '{}');
+  Object.values(customerProfiles).forEach(profile => {
+    if(!Array.isArray(profile.orders)) return;
+    const customerOrder = profile.orders.find(item => item.id === id);
+    if(customerOrder) {
+      customerOrder.status = status === 'Delivered' ? 'Shipped' : status === 'Shipped' ? 'Shipped' : status === 'Pending' ? 'To Pay' : 'To Ship';
+    }
+  });
+  localStorage.setItem('dotCustomerProfiles', JSON.stringify(customerProfiles));
+  if(currentUser?.orders) {
+    const ownOrder = currentUser.orders.find(item => item.id === id);
+    if(ownOrder) ownOrder.status = status === 'Delivered' ? 'Shipped' : status === 'Shipped' ? 'Shipped' : status === 'Pending' ? 'To Pay' : 'To Ship';
+    saveCurrentUser();
+  }
+  saveAdminOrders();
+  renderAdminOrders();
+  renderAdminDashboard();
+  showToast('Order #'+id+' moved to '+status+'.');
 }
 
 // ================== TOAST ==================

@@ -561,7 +561,8 @@
     <h2>Order Placed Successfully!</h2>
     <p>Thank you for your order. We've received it and will start printing shortly. You'll get a confirmation email soon.</p>
     <div class="order-num" id="success-order-num">Order #DP-0001</div>
-    <div style="display:flex;gap:12px">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <button class="btn-outline-dark" onclick="downloadInvoice(lastInvoiceId)">Download Invoice</button>
       <button class="btn-primary" onclick="showPage('home')">Continue Shopping</button>
       <button class="btn-outline-dark" onclick="openInfoPage('track')">Track Order</button>
     </div>
@@ -577,10 +578,11 @@
       <div style="padding:1.5rem;margin-bottom:0.5rem">
         <div class="nav-logo" style="font-size:1rem"><div class="logo-dot" style="width:22px;height:22px"></div>DotProject <span style="color:var(--taupe);font-size:0.75rem;font-family:'DM Sans',sans-serif;font-weight:400">Admin</span></div>
       </div>
-      <div class="admin-nav-item active" onclick="switchAdmin('dashboard',this)">📊 Dashboard</div>
-      <div class="admin-nav-item" onclick="switchAdmin('add-product',this)">➕ Add Product</div>
-      <div class="admin-nav-item" onclick="switchAdmin('products',this)">📦 Products</div>
-      <div class="admin-nav-item" onclick="switchAdmin('orders',this)">🛒 Orders</div>
+      <div class="admin-nav-item active" data-admin-permission="dashboard" onclick="switchAdmin('dashboard',this)">Dashboard</div>
+      <div class="admin-nav-item" data-admin-permission="addProduct" onclick="switchAdmin('add-product',this)">Add Product</div>
+      <div class="admin-nav-item" data-admin-permission="products" onclick="switchAdmin('products',this)">Products</div>
+      <div class="admin-nav-item" data-admin-permission="stock" onclick="switchAdmin('stock',this)">Stock</div>
+      <div class="admin-nav-item" data-admin-permission="orders" onclick="switchAdmin('orders',this)">Orders</div>
       <div style="padding:1.5rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.06)">
         <div style="font-size:0.8rem;color:var(--taupe);margin-bottom:8px">Logged in as</div>
         <div style="font-size:0.875rem;color:white;font-weight:600" id="admin-current-user">Admin User</div>
@@ -593,17 +595,26 @@
         <h2>Dashboard</h2>
         <p class="sub">Overview of your store performance</p>
         <div class="admin-stats">
-          <div class="admin-stat"><div class="s-label">Total Revenue</div><div class="s-val">$2,847</div><div class="s-change">↑ 12% this month</div></div>
-          <div class="admin-stat"><div class="s-label">Total Orders</div><div class="s-val">64</div><div class="s-change">↑ 8 this week</div></div>
+          <div class="admin-stat"><div class="s-label">Total Revenue</div><div class="s-val" id="admin-total-revenue">$0</div><div class="s-change">Demo order value</div></div>
+          <div class="admin-stat"><div class="s-label">Total Orders</div><div class="s-val" id="admin-total-orders">0</div><div class="s-change">All order statuses</div></div>
           <div class="admin-stat"><div class="s-label">Products</div><div class="s-val" id="admin-product-count">0</div><div class="s-change">Live catalog</div></div>
-          <div class="admin-stat"><div class="s-label">Customers</div><div class="s-val">152</div><div class="s-change">↑ 22 new</div></div>
+          <div class="admin-stat"><div class="s-label">Pending</div><div class="s-val" id="admin-pending-orders">0</div><div class="s-change">Needs review</div></div>
         </div>
         <div class="admin-access-panel" id="super-admin-panel" style="display:none">
           <h3 style="font-size:1rem;font-weight:800;margin-bottom:0.75rem">Admin Gmail Access</h3>
-          <p class="sub" style="margin-bottom:1rem">Only the super admin can add Gmail addresses that may open the admin area.</p>
+          <p class="sub" style="margin-bottom:1rem">Super admin can grant full or limited admin access.</p>
           <div class="form-row">
             <div class="form-group" style="margin-bottom:0"><label>Admin Gmail</label><input type="email" id="grant-admin-email" placeholder="newadmin@gmail.com"></div>
             <button class="btn-primary" style="align-self:end;justify-content:center" onclick="grantAdminAccess()">Grant Access</button>
+          </div>
+          <div class="admin-permission-grid">
+            <label><input type="checkbox" class="grant-permission" value="dashboard" checked> Dashboard</label>
+            <label><input type="checkbox" class="grant-permission" value="addProduct" checked> Add Product</label>
+            <label><input type="checkbox" class="grant-permission" value="products" checked> View Products</label>
+            <label><input type="checkbox" class="grant-permission" value="editProduct" checked> Edit Products</label>
+            <label><input type="checkbox" class="grant-permission" value="stock" checked> Stock</label>
+            <label><input type="checkbox" class="grant-permission" value="orders" checked> Orders</label>
+            <label><input type="checkbox" class="grant-permission" value="orderStatus" checked> Update Orders</label>
           </div>
           <div class="admin-access-list" id="admin-access-list"></div>
         </div>
@@ -611,12 +622,7 @@
           <h3 style="font-size:1rem;font-weight:800;margin-bottom:1.5rem">Recent Orders</h3>
           <table class="data-table">
             <thead><tr><th>Order</th><th>Customer</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td>#DP-0064</td><td>Rafiq Ahmed</td><td>Auto Cat Feeder</td><td>$49</td><td><span class="status-badge status-active">Printing</span></td></tr>
-              <tr><td>#DP-0063</td><td>Nusrat Jahan</td><td>Custom Keyring ×3</td><td>$24</td><td><span class="status-badge status-active">Shipped</span></td></tr>
-              <tr><td>#DP-0062</td><td>Tanvir Islam</td><td>Fish Auto Feeder</td><td>$35</td><td><span class="status-badge status-low">Pending</span></td></tr>
-              <tr><td>#DP-0061</td><td>Sadia Hossain</td><td>Mini Shelf (2pcs)</td><td>$18</td><td><span class="status-badge status-active">Delivered</span></td></tr>
-            </tbody>
+            <tbody id="admin-recent-orders"></tbody>
           </table>
         </div>
       </div>
@@ -698,6 +704,9 @@
       <div id="admin-products" style="display:none">
         <h2>All Products</h2>
         <p class="sub">Manage your product catalog</p>
+        <div class="admin-toolbar">
+          <input type="text" id="admin-product-search" placeholder="Search products..." oninput="renderAdminTable()">
+        </div>
         <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
           <table class="data-table">
             <thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
@@ -706,19 +715,47 @@
         </div>
       </div>
 
+      <!-- STOCK -->
+      <div id="admin-stock" style="display:none">
+        <h2>Stock</h2>
+        <p class="sub">Check low stock and update inventory quantities</p>
+        <div class="admin-toolbar">
+          <input type="text" id="admin-stock-search" placeholder="Search stock..." oninput="renderStockTable()">
+        </div>
+        <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
+          <table class="data-table">
+            <thead><tr><th>Product</th><th>Category</th><th>Current Stock</th><th>Status</th><th>Update</th></tr></thead>
+            <tbody id="admin-stock-table"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- ORDERS -->
       <div id="admin-orders" style="display:none">
         <h2>All Orders</h2>
         <p class="sub">Manage and track all customer orders</p>
+        <div class="admin-access-panel">
+          <h3 style="font-size:1rem;font-weight:800;margin-bottom:0.75rem">Manual Invoice</h3>
+          <p class="sub" style="margin-bottom:1rem">Create an invoice for Facebook or offline orders.</p>
+          <div class="form-row">
+            <div class="form-group"><label>Customer Name</label><input type="text" id="manual-invoice-name" placeholder="Customer name"></div>
+            <div class="form-group"><label>Phone</label><input type="tel" id="manual-invoice-phone" placeholder="01XXXXXXXXX"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Email</label><input type="email" id="manual-invoice-email" placeholder="customer@email.com"></div>
+            <div class="form-group"><label>Date</label><input type="date" id="manual-invoice-date" disabled></div>
+          </div>
+          <div class="form-group"><label>Products</label><input type="text" id="manual-invoice-items" placeholder="Auto Cat Feeder x1, Custom Keyring x2"></div>
+          <div class="form-row">
+            <div class="form-group"><label>Total (USD)</label><input type="number" id="manual-invoice-total" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>Status</label><select id="manual-invoice-status"><option>Pending</option><option>To Pay</option><option>In Process</option><option>Shipped</option><option>Delivered</option></select></div>
+          </div>
+          <button class="btn-primary" type="button" onclick="createManualInvoice()">Create Invoice</button>
+        </div>
         <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
           <table class="data-table">
-            <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Date</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr><td><strong>#DP-0064</strong></td><td>Rafiq Ahmed</td><td>Auto Cat Feeder ×1</td><td>$49</td><td>Jun 08</td><td><span class="status-badge status-active">Printing</span></td></tr>
-              <tr><td><strong>#DP-0063</strong></td><td>Nusrat Jahan</td><td>Custom Keyring ×3</td><td>$24</td><td>Jun 07</td><td><span class="status-badge status-active">Shipped</span></td></tr>
-              <tr><td><strong>#DP-0062</strong></td><td>Tanvir Islam</td><td>Fish Auto Feeder ×1</td><td>$35</td><td>Jun 06</td><td><span class="status-badge status-low">Pending</span></td></tr>
-              <tr><td><strong>#DP-0061</strong></td><td>Sadia Hossain</td><td>Mini Shelf ×2</td><td>$18</td><td>Jun 05</td><td><span class="status-badge status-active">Delivered</span></td></tr>
-            </tbody>
+            <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="admin-order-table"></tbody>
           </table>
         </div>
       </div>
