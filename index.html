@@ -209,6 +209,10 @@
     font-family: 'DM Sans',sans-serif; font-size: 0.98rem; outline: none;
     padding: 0 10px;
   }
+  .hero-search input:focus {
+    background: transparent;
+    color: white;
+  }
   .hero-search input::placeholder { color: rgba(255,255,255,0.48); }
   .hero-search .btn-primary { padding: 12px 18px; white-space: nowrap; }
   .hero-search-hints { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
@@ -589,7 +593,7 @@
     font-size: 0.8rem; font-weight: 600; color: var(--text-muted);
     padding-right: 20px;
   }
-  .step.active { color: var(--text-main); }
+  .step.active { color: var(--text-main); font-weight: 800; }
   .step.done { color: var(--turquoise-xdark); }
   .step-num {
     width: 28px; height: 28px; border-radius: 50%;
@@ -618,6 +622,41 @@
     font-size: 0.875rem; font-weight: 600; transition: all 0.2s;
   }
   .pay-option.selected { border-color: var(--turquoise); background: rgba(72,209,204,0.05); color: var(--turquoise-xdark); }
+  .payment-fields { display: none; }
+  .payment-fields.active { display: block; }
+  .mobile-payment-box {
+    border: 1px solid rgba(72,209,204,0.22);
+    background: rgba(72,209,204,0.05);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+  }
+  .mobile-payment-box p {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: -0.5rem;
+  }
+  .merchant-payment-number {
+    border: 1px solid rgba(15,15,15,0.1);
+    background: white;
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-bottom: 1rem;
+  }
+  .merchant-payment-number span {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .merchant-payment-number strong {
+    color: var(--onyx);
+    font-family: 'Syne',sans-serif;
+    font-size: 1.15rem;
+  }
+  .cod-payment-box.active { display: none; }
   .card-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; }
 
   /* ADMIN ADD PRODUCT */
@@ -731,6 +770,17 @@
   .account-menu button.active, .account-menu button:hover {
     background: var(--turquoise); border-color: var(--turquoise); color: var(--onyx);
   }
+  .account-menu button.account-logout {
+    margin-top: auto;
+    color: #b42318;
+    border-color: rgba(180,35,24,0.22);
+    background: #fff5f4;
+  }
+  .account-menu button.account-logout:hover {
+    background: #b42318;
+    border-color: #b42318;
+    color: white;
+  }
   .account-panel {
     min-height: 320px; border: 1px solid var(--border);
     border-radius: var(--radius); padding: 1.25rem; background: white;
@@ -829,7 +879,7 @@
       <h4>Total</h4>
       <span id="cart-total-price">$0.00</span>
     </div>
-    <button class="btn-primary btn-full" onclick="showPage('checkout')">Proceed to Checkout →</button>
+    <button class="btn-primary btn-full" onclick="goToCheckout()">Proceed to Checkout →</button>
   </div>
 </div>
 
@@ -938,6 +988,7 @@
         <button type="button" data-account-tab="orders" onclick="showAccountTab('orders', this)">My Order</button>
         <button type="button" data-account-tab="shipping" onclick="showAccountTab('shipping', this)">Shipping Address</button>
         <button type="button" data-account-tab="cart" onclick="showAccountTab('cart', this)">Product Cart</button>
+        <button type="button" class="account-logout" onclick="handleLogout()">Log Out</button>
       </div>
       <div class="account-panel" id="account-panel"></div>
     </div>
@@ -967,7 +1018,7 @@
         </div>
         <div class="det-actions">
           <button class="btn-primary" onclick="addToCartFromModal()">Add to Cart</button>
-          <button class="btn-outline-dark" onclick="showPage('checkout');closeModal('modal-product')">Buy Now</button>
+          <button class="btn-outline-dark" onclick="addToCartFromModal();goToCheckout();closeModal('modal-product')">Buy Now</button>
         </div>
         <div class="det-specs">
           <div class="det-spec-row"><span>Material</span><span>PLA+ / PETG</span></div>
@@ -1261,16 +1312,15 @@
       </div>
 
       <!-- PAYMENT -->
-      <div class="checkout-card">
+      <div class="checkout-card" id="checkout-step-payment">
         <h3>Payment Method</h3>
         <div class="payment-method">
-          <div class="pay-option selected" onclick="selectPay(this)">💳 Card</div>
-          <div class="pay-option" onclick="selectPay(this)">📱 bKash</div>
-          <div class="pay-option" onclick="selectPay(this)">📱 Nagad</div>
-          <div class="pay-option" onclick="selectPay(this)">🏦 Bank Transfer</div>
-          <div class="pay-option" onclick="selectPay(this)">💵 Cash on Delivery</div>
+          <div class="pay-option selected" data-payment="card" onclick="selectPay(this)">💳 Card</div>
+          <div class="pay-option" data-payment="bkash" onclick="selectPay(this)">📱 bKash</div>
+          <div class="pay-option" data-payment="nagad" onclick="selectPay(this)">📱 Nagad</div>
+          <div class="pay-option" data-payment="cod" onclick="selectPay(this)">💵 Cash on Delivery</div>
         </div>
-        <div id="card-fields">
+        <div class="payment-fields active" id="card-fields" data-payment-panel="card">
           <div class="form-group"><label>Card Number</label><input type="text" placeholder="1234 5678 9012 3456"></div>
           <div class="card-row">
             <div class="form-group"><label>Card Name</label><input type="text" placeholder="Name on card"></div>
@@ -1278,6 +1328,23 @@
             <div class="form-group"><label>CVV</label><input type="text" placeholder="123"></div>
           </div>
         </div>
+        <div class="payment-fields mobile-payment-box" id="bkash-fields" data-payment-panel="bkash">
+          <div class="merchant-payment-number">
+            <span>Send Money to bKash Personal</span>
+            <strong id="bkash-merchant-number">01XXXXXXXXX</strong>
+          </div>
+          <div class="form-group"><label>bKash TrxID</label><input type="text" id="bkash-trx-id" placeholder="Enter transaction ID"></div>
+          <p>Send the total amount first, then submit the bKash TrxID here.</p>
+        </div>
+        <div class="payment-fields mobile-payment-box" id="nagad-fields" data-payment-panel="nagad">
+          <div class="merchant-payment-number">
+            <span>Send Money to Nagad Personal</span>
+            <strong id="nagad-merchant-number">01XXXXXXXXX</strong>
+          </div>
+          <div class="form-group"><label>Nagad TrxID</label><input type="text" id="nagad-trx-id" placeholder="Enter transaction ID"></div>
+          <p>Send the total amount first, then submit the Nagad TrxID here.</p>
+        </div>
+        <div class="payment-fields cod-payment-box" id="cod-fields" data-payment-panel="cod"></div>
       </div>
 
       <button class="btn-primary" style="width:100%;justify-content:center;padding:16px;font-size:1rem" onclick="placeOrder()">Place Order →</button>
@@ -1491,6 +1558,8 @@ const products = [
 
 let cart = [];
 const SUPER_ADMIN_EMAIL = 'superadmin@gmail.com';
+const BKASH_PERSONAL_NUMBER = '01XXXXXXXXX';
+const NAGAD_PERSONAL_NUMBER = '01XXXXXXXXX';
 let currentUser = JSON.parse(localStorage.getItem('dotCurrentUser') || 'null');
 let adminEmails = JSON.parse(localStorage.getItem('dotAdminEmails') || 'null') || [SUPER_ADMIN_EMAIL];
 let resetCode = '';
@@ -1639,6 +1708,77 @@ function toggleCart() {
 }
 
 // ================== CHECKOUT ==================
+function hasCartItems() {
+  return cart.reduce((total, item) => total + Number(item.qty || 0), 0) > 0;
+}
+
+function goToCheckout() {
+  if(!hasCartItems()) {
+    showToast('Please add a product to your cart before checkout.');
+    const drawer = document.getElementById('cart-drawer');
+    const overlay = document.getElementById('cart-overlay');
+    if(drawer && !drawer.classList.contains('open')) drawer.classList.add('open');
+    if(overlay && !overlay.classList.contains('open')) overlay.classList.add('open');
+    return;
+  }
+  showPage('checkout');
+}
+
+function updateCheckoutSteps(activeStep = 'payment') {
+  const steps = {
+    cart: document.getElementById('step1'),
+    details: document.getElementById('step2'),
+    payment: document.getElementById('step3'),
+    confirm: document.getElementById('step4')
+  };
+  Object.values(steps).forEach(step => step?.classList.remove('active', 'done'));
+  if(activeStep === 'payment') {
+    steps.cart?.classList.add('done');
+    steps.details?.classList.add('done');
+    steps.payment?.classList.add('active');
+  } else if(activeStep === 'confirm') {
+    steps.cart?.classList.add('done');
+    steps.details?.classList.add('done');
+    steps.payment?.classList.add('done');
+    steps.confirm?.classList.add('active');
+  } else {
+    steps.cart?.classList.add('done');
+    steps.details?.classList.add('active');
+  }
+}
+
+function syncMerchantPaymentNumbers() {
+  const bkashNumber = document.getElementById('bkash-merchant-number');
+  const nagadNumber = document.getElementById('nagad-merchant-number');
+  if(bkashNumber) bkashNumber.textContent = BKASH_PERSONAL_NUMBER;
+  if(nagadNumber) nagadNumber.textContent = NAGAD_PERSONAL_NUMBER;
+}
+
+function getSelectedPaymentMethod() {
+  return document.querySelector('.pay-option.selected')?.dataset.payment || 'card';
+}
+
+function validatePaymentDetails() {
+  const method = getSelectedPaymentMethod();
+  if(method === 'bkash') {
+    const trxId = document.getElementById('bkash-trx-id')?.value.trim();
+    if(!trxId) {
+      showToast('Please enter your bKash TrxID.');
+      document.getElementById('bkash-trx-id')?.focus();
+      return false;
+    }
+  }
+  if(method === 'nagad') {
+    const trxId = document.getElementById('nagad-trx-id')?.value.trim();
+    if(!trxId) {
+      showToast('Please enter your Nagad TrxID.');
+      document.getElementById('nagad-trx-id')?.focus();
+      return false;
+    }
+  }
+  return true;
+}
+
 function renderCheckoutSummary() {
   const container = document.getElementById('checkout-summary-items');
   const subtotal = cart.reduce((s,c)=>s+(c.price*c.qty), 0);
@@ -1655,6 +1795,13 @@ function renderCheckoutSummary() {
 }
 
 function placeOrder() {
+  if(!hasCartItems()) {
+    showToast('Your cart is empty. Add a product before placing an order.');
+    showPage('home');
+    return;
+  }
+  if(!validatePaymentDetails()) return;
+  updateCheckoutSteps('confirm');
   const num = 'DP-' + String(Math.floor(Math.random()*9000)+1000);
   document.getElementById('success-order-num').textContent = 'Order #'+num;
   cart = [];
@@ -1665,6 +1812,12 @@ function placeOrder() {
 function selectPay(el) {
   document.querySelectorAll('.pay-option').forEach(e=>e.classList.remove('selected'));
   el.classList.add('selected');
+  const method = el.dataset.payment || 'card';
+  document.querySelectorAll('[data-payment-panel]').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.paymentPanel === method);
+  });
+  syncMerchantPaymentNumbers();
+  updateCheckoutSteps('payment');
 }
 
 // ================== AUTH ==================
@@ -1842,11 +1995,25 @@ function showPage(id) {
     showToast('Admin access needs an approved Gmail sign in.');
     return;
   }
+  if(id === 'checkout' && !hasCartItems()) {
+    showToast('Please add a product to your cart before checkout.');
+    const drawer = document.getElementById('cart-drawer');
+    const overlay = document.getElementById('cart-overlay');
+    if(drawer) drawer.classList.add('open');
+    if(overlay) overlay.classList.add('open');
+    return;
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const page = document.getElementById('page-'+id);
   if(page) page.classList.add('active');
   window.scrollTo(0,0);
-  if(id==='checkout') renderCheckoutSummary();
+  if(id==='checkout') {
+    renderCheckoutSummary();
+    syncMerchantPaymentNumbers();
+    updateCheckoutSteps('payment');
+    const selectedPay = document.querySelector('.pay-option.selected') || document.querySelector('.pay-option[data-payment="card"]');
+    if(selectedPay) selectPay(selectedPay);
+  }
   if(id==='shop') renderShopProducts();
   if(id==='admin') {
     renderAdminTable();
@@ -2071,6 +2238,16 @@ function saveShippingAddress() {
   currentUser.shippingAddress = document.getElementById('profile-shipping-address').value.trim();
   persistCustomerProfile();
   showToast('Shipping address saved.');
+}
+function handleLogout() {
+  currentUser = null;
+  localStorage.removeItem('dotCurrentUser');
+  closeModal('modal-account');
+  updateAuthUI();
+  if(document.getElementById('page-admin')?.classList.contains('active')) {
+    showPage('home');
+  }
+  showToast('You have been logged out.');
 }
 function handleSignin() {
   const email = normalizeEmail(document.getElementById('signin-email').value);
