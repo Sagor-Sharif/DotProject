@@ -34,9 +34,24 @@ let adminOrders = readStorage('dotAdminOrders', null) || [
   { id:'DP-0061', customer:'Sadia Hossain', items:'Mini Shelf x2', total:18, date:'Jun 05', status:'Delivered' }
 ];
 let invoices = readStorage('dotInvoices', null) || {};
+let blogPosts = readStorage('dotBlogPosts', null) || [
+  {
+    id: 'BLOG-001',
+    title: 'How 3D Printing Helps Custom Product Ideas',
+    description: 'From keyrings to smart feeders, 3D printing lets customers test useful ideas quickly with small-batch production.',
+    photo: '',
+    video: '',
+    date: 'Jun 11, 2026',
+    likes: 0,
+    likedBy: [],
+    comments: []
+  }
+];
 let lastInvoiceId = localStorage.getItem('dotLastInvoiceId') || '';
 let resetCode = '';
 let resetEmail = '';
+let activePageId = 'home';
+let isHistoryNavigation = false;
 
 function getNewProducts(){ return products.filter(p=>p.isNew); }
 function getTopProducts(){ return products.filter(p=>p.isTop); }
@@ -203,6 +218,8 @@ function goToCheckout() {
     if(overlay && !overlay.classList.contains('open')) overlay.classList.add('open');
     return;
   }
+  document.getElementById('cart-drawer')?.classList.remove('open');
+  document.getElementById('cart-overlay')?.classList.remove('open');
   showPage('checkout');
 }
 
@@ -387,35 +404,80 @@ function wrapPdfText(value, maxLength=74) {
   return lines.length ? lines : [''];
 }
 function invoicePdfBlob(invoice) {
-  const lines = [
-    { text:'DotProject', size:20, x:50, y:780 },
-    { text:'Invoice', size:26, x:50, y:748 },
-    { text:invoice.id, size:12, x:410, y:780 },
-    { text:'Order #'+invoice.orderId, size:11, x:410, y:760 },
-    { text:invoice.date, size:11, x:410, y:744 },
-    { text:'Bill To', size:14, x:50, y:700 },
-    { text:invoice.customer || 'Customer', size:11, x:50, y:680 },
-    { text:invoice.phone ? 'Phone: '+invoice.phone : '', size:11, x:50, y:664 },
-    { text:invoice.email ? 'Email: '+invoice.email : '', size:11, x:50, y:648 },
-    { text:invoice.address ? 'Address: '+invoice.address : '', size:11, x:50, y:632 },
-    { text:'Status: '+(invoice.status || 'Pending'), size:11, x:50, y:596 },
-    { text:'Source: '+(invoice.source || 'Online'), size:11, x:50, y:580 },
-    { text:invoice.payment ? 'Payment: '+invoice.payment : '', size:11, x:50, y:564 },
-    { text:'Products', size:14, x:50, y:552 }
-  ].filter(line => line.text);
-  let y = 528;
-  wrapPdfText(invoice.items, 80).forEach(itemLine => {
-    lines.push({ text:itemLine, size:11, x:50, y });
-    y -= 16;
+  const commands = [];
+  const total = Number(invoice.total || 0);
+  const itemRows = String(invoice.items || 'Custom order')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean)
+    .map(item => {
+      const qtyMatch = item.match(/\sx\s*(\d+)$/i);
+      return {
+        name: qtyMatch ? item.replace(/\sx\s*\d+$/i, '').trim() : item,
+        qty: qtyMatch ? qtyMatch[1] : '1'
+      };
+    });
+  if(!itemRows.length) itemRows.push({ name: 'Custom order', qty: '1' });
+  const add = cmd => commands.push(cmd);
+  const color = (r,g,b) => add(`${r} ${g} ${b} rg`);
+  const strokeColor = (r,g,b) => add(`${r} ${g} ${b} RG`);
+  const rect = (x,y,w,h,mode='f') => add(`${x} ${y} ${w} ${h} re ${mode}`);
+  const text = (value, x, y, size=10, font='F1') => add(`BT /${font} ${size} Tf ${x} ${y} Td (${pdfSafe(value)}) Tj ET`);
+
+  color(1,1,1); rect(0,0,612,792);
+  color(0.09,0.78,0.75); rect(0,720,612,72);
+  color(0.04,0.05,0.05); rect(0,0,612,18);
+  color(1,1,1); text('DotProject', 42, 758, 24, 'F2'); text('Color Invoice', 42, 738, 11, 'F1');
+  text(invoice.id || 'Invoice', 420, 760, 12, 'F2');
+  text('Order #' + (invoice.orderId || invoice.id || ''), 420, 742, 10, 'F1');
+  text(invoice.date || new Date().toLocaleDateString(), 420, 726, 10, 'F1');
+
+  color(0.04,0.05,0.05); text('Bill To', 42, 682, 13, 'F2');
+  color(0.18,0.18,0.18);
+  text(invoice.customer || 'Customer', 42, 662, 10, 'F2');
+  if(invoice.phone) text('Phone: ' + invoice.phone, 42, 646, 10);
+  if(invoice.email) text('Email: ' + invoice.email, 42, 630, 10);
+  wrapPdfText(invoice.address || 'Address not provided', 54).slice(0,3).forEach((line, index) => text((index ? '' : 'Address: ') + line, 42, 614 - (index * 14), 10));
+
+  color(0.04,0.05,0.05); text('Order Details', 360, 682, 13, 'F2');
+  color(0.18,0.18,0.18);
+  text('Status: ' + (invoice.status || 'Pending'), 360, 662, 10);
+  text('Source: ' + (invoice.source || 'Online'), 360, 646, 10);
+  if(invoice.payment) text('Payment: ' + invoice.payment, 360, 630, 10);
+
+  color(0.94,0.99,0.98); rect(42,500,528,40);
+  strokeColor(0.09,0.78,0.75); rect(42,370,528,170,'S');
+  color(0.04,0.05,0.05); text('Product', 58, 516, 10, 'F2'); text('Qty', 395, 516, 10, 'F2'); text('Amount', 486, 516, 10, 'F2');
+  strokeColor(0.82,0.88,0.88); add('42 500 m 570 500 l S');
+  let y = 478;
+  itemRows.slice(0,8).forEach((item, index) => {
+    const rowAmount = index === itemRows.length - 1 ? '$' + total.toFixed(2) : '-';
+    const wrapped = wrapPdfText(item.name, 48).slice(0,2);
+    color(0.18,0.18,0.18);
+    wrapped.forEach((line, lineIndex) => text(line, 58, y - (lineIndex * 13), 10));
+    text(item.qty, 398, y, 10);
+    text(rowAmount, 486, y, 10);
+    strokeColor(0.9,0.93,0.93); add(`42 ${y - 16} m 570 ${y - 16} l S`);
+    y -= wrapped.length > 1 ? 42 : 30;
   });
-  lines.push({ text:'Grand Total: $'+Number(invoice.total || 0).toFixed(2), size:16, x:350, y:y-24 });
-  lines.push({ text:'Thank you for ordering from DotProject.', size:11, x:50, y:y-70 });
-  const textStream = lines.map(line => `BT /F1 ${line.size} Tf ${line.x} ${line.y} Td (${pdfSafe(line.text)}) Tj ET`).join('\n');
+  if(itemRows.length > 8) text('+' + (itemRows.length - 8) + ' more items', 58, y, 10);
+
+  color(0.94,0.99,0.98); rect(360,304,210,48);
+  color(0.04,0.05,0.05); text('Grand Total', 380, 326, 12, 'F2');
+  color(0.09,0.78,0.75); text('$' + total.toFixed(2), 486, 326, 16, 'F2');
+
+  color(0.18,0.18,0.18); text('Thank you for ordering from DotProject.', 42, 270, 10);
+  strokeColor(0.04,0.05,0.05); add('392 170 m 570 170 l S');
+  color(0.04,0.05,0.05); text('Sagor Sharif', 442, 148, 13, 'F2');
+  color(0.18,0.18,0.18); text('account manager', 440, 132, 10);
+
+  const textStream = commands.join('\n');
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
     `<< /Length ${textStream.length} >>\nstream\n${textStream}\nendstream`
   ];
   let pdf = '%PDF-1.4\n';
@@ -554,14 +616,18 @@ function handleSignup() {
 
 // ================== ADMIN ==================
 function switchAdmin(section, el) {
-  const permissionMap = { dashboard:'dashboard', 'add-product':'addProduct', products:'products', stock:'stock', orders:'orders' };
+  const permissionMap = { dashboard:'dashboard', 'add-product':'addProduct', products:'products', stock:'stock', orders:'orders', blogs:'dashboard' };
+  if(section === 'blogs' && !isSuperAdmin()) {
+    showToast('Only super admin can manage blog posts.');
+    return;
+  }
   if(!canAdmin(permissionMap[section] || section)) {
     showToast('This admin account does not have access to '+section+'.');
     return;
   }
   document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));
   if(el) el.classList.add('active');
-  ['dashboard','add-product','products','stock','orders'].forEach(s=>{
+  ['dashboard','add-product','products','stock','orders','blogs'].forEach(s=>{
     const el = document.getElementById('admin-'+s);
     if(el) el.style.display = 'none';
   });
@@ -570,6 +636,7 @@ function switchAdmin(section, el) {
   if(section==='products') renderAdminTable();
   if(section==='stock') renderStockTable();
   if(section==='orders') { renderAdminOrders(); setManualInvoiceDate(); }
+  if(section==='blogs') renderAdminBlogs();
   if(section==='dashboard') renderAdminDashboard();
 }
 
@@ -614,6 +681,7 @@ function saveAdmins(){ localStorage.setItem('dotAdminEmails', JSON.stringify(adm
 function saveAdminPermissions(){ localStorage.setItem('dotAdminPermissions', JSON.stringify(adminPermissions)); }
 function saveAdminOrders(){ localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders)); }
 function saveInvoices(){ localStorage.setItem('dotInvoices', JSON.stringify(invoices)); }
+function saveBlogPosts(){ localStorage.setItem('dotBlogPosts', JSON.stringify(blogPosts)); }
 function rememberLastInvoice(id){ lastInvoiceId = id; localStorage.setItem('dotLastInvoiceId', id); }
 function saveCurrentUser(){ localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser)); }
 function esc(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
@@ -790,8 +858,8 @@ const infoPages = {
   blog: {
     badge: 'Company',
     title: 'Blog',
-    subtitle: 'Demo posts from the DotProject workshop.',
-    html: `<div class="info-panel"><h3>How 3D Printing Helps Custom Product Ideas</h3><p>A short demo article about turning sketches into useful printed products.</p></div><div class="info-panel"><h3>Choosing PLA, PETG, and Colors</h3><p>A demo guide for customers choosing material and finish.</p></div>`
+    subtitle: 'Posts from the DotProject workshop.',
+    html: ''
   },
   careers: {
     badge: 'Company',
@@ -805,8 +873,86 @@ function openInfoPage(key) {
   document.getElementById('info-badge').textContent = info.badge;
   document.getElementById('info-title').textContent = info.title;
   document.getElementById('info-subtitle').textContent = info.subtitle;
-  document.getElementById('info-content').innerHTML = info.html;
+  document.getElementById('info-content').innerHTML = key === 'blog' ? renderBlogPosts() : info.html;
   showPage('info');
+}
+function blogMediaMarkup(post) {
+  if(post.video) {
+    const src = esc(post.video);
+    if(src.includes('youtube.com') || src.includes('youtu.be')) {
+      let id = '';
+      try {
+        id = src.includes('youtu.be') ? src.split('/').pop().split('?')[0] : new URL(src).searchParams.get('v');
+      } catch (error) {
+        id = '';
+      }
+      if(!id) return `<div class="blog-media">Video link unavailable</div>`;
+      return `<div class="blog-media"><iframe src="https://www.youtube.com/embed/${esc(id || '')}" title="${esc(post.title)}" allowfullscreen></iframe></div>`;
+    }
+    return `<div class="blog-media"><video src="${src}" controls poster="${esc(post.photo || '')}"></video></div>`;
+  }
+  if(post.photo) return `<div class="blog-media"><img src="${esc(post.photo)}" alt="${esc(post.title)}"></div>`;
+  return `<div class="blog-media">DotProject Blog</div>`;
+}
+function renderBlogPosts() {
+  if(!blogPosts.length) return '<div class="account-empty">No blog posts yet.</div>';
+  return `<div class="blog-grid">${blogPosts.map(post => {
+    const comments = Array.isArray(post.comments) ? post.comments : [];
+    return `<article class="blog-card">
+      ${blogMediaMarkup(post)}
+      <div class="blog-body">
+        <div class="blog-meta">${esc(post.date || '')}</div>
+        <h3>${esc(post.title)}</h3>
+        <p>${esc(post.description)}</p>
+        <div class="blog-actions">
+          <button class="btn-outline-dark" type="button" onclick="likeBlogPost('${esc(post.id)}')">Like (${Number(post.likes || 0)})</button>
+          <button class="btn-outline-dark" type="button" onclick="document.getElementById('comment-${esc(post.id)}')?.focus()">Comment (${comments.length})</button>
+        </div>
+        <div class="blog-comments">
+          ${comments.slice(-4).map(comment => `<div class="blog-comment"><strong>${esc(comment.name)}</strong>: ${esc(comment.text)}</div>`).join('')}
+        </div>
+        <div class="blog-comment-form">
+          <input type="text" id="comment-${esc(post.id)}" placeholder="Write a comment">
+          <button class="btn-primary" type="button" onclick="addBlogComment('${esc(post.id)}')">Post</button>
+        </div>
+      </div>
+    </article>`;
+  }).join('')}</div>`;
+}
+function rerenderBlogIfOpen() {
+  if(document.getElementById('page-info')?.classList.contains('active') && document.getElementById('info-title')?.textContent === 'Blog') {
+    document.getElementById('info-content').innerHTML = renderBlogPosts();
+    setTimeout(refreshScrollMotion, 0);
+  }
+}
+function likeBlogPost(id) {
+  const post = blogPosts.find(item => item.id === id);
+  if(!post) return;
+  const liker = normalizeEmail(currentUser?.email || 'guest-browser');
+  post.likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+  if(post.likedBy.includes(liker)) {
+    showToast('You already liked this post.');
+    return;
+  }
+  post.likedBy.push(liker);
+  post.likes = Number(post.likes || 0) + 1;
+  saveBlogPosts();
+  rerenderBlogIfOpen();
+}
+function addBlogComment(id) {
+  const post = blogPosts.find(item => item.id === id);
+  const input = document.getElementById('comment-'+id);
+  const text = input?.value.trim();
+  if(!post || !text) { showToast('Write a comment first.'); return; }
+  post.comments = Array.isArray(post.comments) ? post.comments : [];
+  post.comments.push({
+    name: currentUser ? getCustomerName() : 'Guest',
+    text,
+    date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
+  });
+  saveBlogPosts();
+  input.value = '';
+  rerenderBlogIfOpen();
 }
 function renderAdminTable() {
   const tb = document.getElementById('admin-product-table');
@@ -851,7 +997,12 @@ function renderAdminOrders() {
   const table = document.getElementById('admin-order-table');
   const recent = document.getElementById('admin-recent-orders');
   setManualInvoiceDate();
-  const rows = adminOrders.map(order => `<tr>
+  const query = (document.getElementById('admin-order-search')?.value || '').trim().toLowerCase();
+  const visibleOrders = adminOrders.filter(order => {
+    const haystack = [order.id, order.customer, order.items, order.status, order.date, order.invoiceId].join(' ').toLowerCase();
+    return !query || haystack.includes(query);
+  });
+  const rows = visibleOrders.map(order => `<tr>
     <td><strong>#${esc(order.id)}</strong></td>
     <td>${esc(order.customer)}</td>
     <td>${esc(order.items)}</td>
@@ -862,10 +1013,100 @@ function renderAdminOrders() {
       ${['Pending','In Process','Printing','Shipped','Delivered','Cancelled'].map(status => `<option ${order.status === status ? 'selected' : ''}>${status}</option>`).join('')}
     </select><button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="downloadInvoice('${esc(order.invoiceId || '')}')">Invoice</button></div></td>
   </tr>`).join('');
-  if(table) table.innerHTML = rows;
+  if(table) table.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No orders found.</td></tr>';
   if(recent) recent.innerHTML = adminOrders.slice(0,4).map(order => `<tr>
     <td>#${esc(order.id)}</td><td>${esc(order.customer)}</td><td>${esc(order.items)}</td><td>$${Number(order.total).toFixed(2)}</td><td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
   </tr>`).join('');
+}
+function renderAdminBlogs() {
+  const list = document.getElementById('admin-blog-list');
+  if(!list) return;
+  if(!isSuperAdmin()) {
+    list.innerHTML = '<div class="account-empty">Only super admin can manage blog posts.</div>';
+    return;
+  }
+  list.innerHTML = blogPosts.length ? blogPosts.map(post => `
+    <div class="admin-blog-row">
+      <div class="admin-blog-thumb">${post.photo ? `<img src="${esc(post.photo)}" alt="${esc(post.title)}">` : 'Blog'}</div>
+      <div>
+        <strong>${esc(post.title)}</strong>
+        <small style="display:block;color:var(--text-muted)">${esc(post.date || '')} - ${Number(post.likes || 0)} likes - ${(post.comments || []).length} comments</small>
+        <small style="display:block;color:var(--text-muted)">${esc(post.description).slice(0, 130)}${String(post.description || '').length > 130 ? '...' : ''}</small>
+      </div>
+      <div class="admin-row-actions">
+        <button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="editBlogPost('${esc(post.id)}')">Edit</button>
+        <button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="deleteBlogPost('${esc(post.id)}')">Delete</button>
+      </div>
+    </div>`).join('') : '<div class="account-empty">No blog posts yet.</div>';
+}
+function clearBlogForm() {
+  ['blog-edit-id','blog-title','blog-photo','blog-photo-file','blog-video','blog-description'].forEach(id => {
+    const field = document.getElementById(id);
+    if(field) field.value = '';
+  });
+}
+function readBlogPhoto(input) {
+  const file = input.files && input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const photoField = document.getElementById('blog-photo');
+    if(photoField) photoField.value = reader.result;
+    showToast('Blog photo uploaded.');
+  };
+  reader.readAsDataURL(file);
+}
+function saveBlogPost() {
+  if(!isSuperAdmin()) { showToast('Only super admin can save blog posts.'); return; }
+  const id = document.getElementById('blog-edit-id')?.value || '';
+  const title = document.getElementById('blog-title')?.value.trim();
+  const photo = document.getElementById('blog-photo')?.value.trim();
+  const video = document.getElementById('blog-video')?.value.trim();
+  const description = document.getElementById('blog-description')?.value.trim();
+  if(!title || !description) { showToast('Blog title and description are required.'); return; }
+  if(!photo && !video) { showToast('Please upload a photo or add a video URL.'); return; }
+  const existing = blogPosts.find(post => post.id === id);
+  if(existing) {
+    Object.assign(existing, { title, photo, video, description });
+  } else {
+    blogPosts.unshift({
+      id: 'BLOG-' + Date.now(),
+      title,
+      photo,
+      video,
+      description,
+      date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' }),
+      likes: 0,
+      likedBy: [],
+      comments: []
+    });
+  }
+  saveBlogPosts();
+  clearBlogForm();
+  renderAdminBlogs();
+  rerenderBlogIfOpen();
+  showToast('Blog post saved.');
+}
+function editBlogPost(id) {
+  if(!isSuperAdmin()) return;
+  const post = blogPosts.find(item => item.id === id);
+  if(!post) return;
+  document.getElementById('blog-edit-id').value = post.id;
+  document.getElementById('blog-title').value = post.title || '';
+  document.getElementById('blog-photo').value = post.photo || '';
+  const fileInput = document.getElementById('blog-photo-file');
+  if(fileInput) fileInput.value = '';
+  document.getElementById('blog-video').value = post.video || '';
+  document.getElementById('blog-description').value = post.description || '';
+  showToast('Blog post loaded for editing.');
+}
+function deleteBlogPost(id) {
+  if(!isSuperAdmin()) { showToast('Only super admin can delete blog posts.'); return; }
+  blogPosts = blogPosts.filter(post => post.id !== id);
+  saveBlogPosts();
+  renderAdminBlogs();
+  rerenderBlogIfOpen();
+  showToast('Blog post deleted.');
 }
 function setManualInvoiceDate() {
   const dateInput = document.getElementById('manual-invoice-date');
@@ -932,7 +1173,7 @@ function openDefaultAdminSection() {
   const navItem = document.querySelector(`[data-admin-permission="${target[0]}"]`);
   switchAdmin(target[1], navItem);
 }
-function showPage(id) {
+function showPage(id, options = {}) {
   if(id === 'admin' && (!currentUser || !isAdminEmail(currentUser.email))) {
     openModal('modal-signin');
     showToast('Admin access needs an approved Gmail sign in.');
@@ -949,6 +1190,10 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   const page = document.getElementById('page-'+id);
   if(page) page.classList.add('active');
+  activePageId = page ? id : activePageId;
+  if(page && !options.skipHistory && !isHistoryNavigation) {
+    history.pushState({ page: id }, '', '#'+id);
+  }
   window.scrollTo(0,0);
   if(id==='checkout') {
     fillCheckoutDetails();
@@ -963,6 +1208,7 @@ function showPage(id) {
     renderAdminAccess();
     renderStockTable();
     renderAdminOrders();
+    renderAdminBlogs();
     renderAdminDashboard();
     document.getElementById('admin-current-user').textContent = currentUser.email;
     openDefaultAdminSection();
@@ -1064,6 +1310,7 @@ function persistCustomerProfile() {
 function updateAuthUI() {
   const btn = document.querySelector('.btn-nav-signin');
   const chip = document.getElementById('account-chip');
+  const adminBtn = document.getElementById('account-admin-btn');
   if(!btn || !chip) return;
   if(currentUser) currentUser = ensureCustomerProfile(currentUser);
   if(currentUser) {
@@ -1071,16 +1318,19 @@ function updateAuthUI() {
     chip.style.display = 'inline-flex';
     document.getElementById('nav-account-photo').innerHTML = avatarMarkup(currentUser);
     document.getElementById('nav-account-name').textContent = getCustomerName(currentUser);
+    if(adminBtn) adminBtn.style.display = isAdminEmail(currentUser.email) ? 'block' : 'none';
     persistCustomerProfile();
   } else {
     btn.style.display = 'inline-flex';
     btn.textContent = 'Sign In';
     btn.onclick = () => openModal('modal-signin');
     chip.style.display = 'none';
+    if(adminBtn) adminBtn.style.display = 'none';
   }
 }
 function openAccountModal() {
   if(!currentUser) { openModal('modal-signin'); return; }
+  updateAuthUI();
   document.getElementById('account-subtitle').textContent = getCustomerName()+' - '+currentUser.email;
   openModal('modal-account');
   showAccountTab('profile');
@@ -1113,8 +1363,27 @@ function toggleOrderDetail(orderId) {
   const detail = document.getElementById('order-detail-'+String(orderId).replace(/[^a-z0-9_-]/gi, '-'));
   if(detail) detail.classList.toggle('hidden');
 }
+function submitOrderReview(orderId) {
+  if(!currentUser?.orders) { showToast('Please sign in to review your order.'); return; }
+  const safeId = String(orderId).replace(/[^a-z0-9_-]/gi, '-');
+  const rating = document.getElementById('review-rating-'+safeId)?.value || '5';
+  const note = document.getElementById('review-text-'+safeId)?.value.trim();
+  if(!note) { showToast('Please write a short review.'); return; }
+  const order = currentUser.orders.find(item => String(item.id) === String(orderId));
+  if(!order) return;
+  order.review = {
+    rating,
+    note,
+    date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
+  };
+  order.status = 'Reviewed';
+  persistCustomerProfile();
+  activeOrderFilter = 'Reviewed';
+  showAccountTab('orders');
+  showToast('Review submitted. Thank you.');
+}
 function renderMyOrders() {
-  const statuses = ['All', 'To Pay', 'To Ship', 'Shipped'];
+  const statuses = ['All', 'To Pay', 'To Ship', 'Shipped', 'To Review', 'Reviewed'];
   const orders = normalizedCustomerOrders();
   const statusCards = statuses.map(status => {
     const count = status === 'All' ? orders.length : orders.filter(order => order.status === status).length;
@@ -1123,6 +1392,22 @@ function renderMyOrders() {
   const filteredOrders = activeOrderFilter === 'All' ? orders : orders.filter(order => order.status === activeOrderFilter);
   const rows = filteredOrders.map(order => {
     const detailId = 'order-detail-'+String(order.id).replace(/[^a-z0-9_-]/gi, '-');
+    const reviewId = String(order.id).replace(/[^a-z0-9_-]/gi, '-');
+    const reviewBlock = order.review ? `
+        <div class="order-review-box">
+          <strong>Your Review</strong><br>
+          Rating: ${esc(order.review.rating)} / 5<br>
+          ${esc(order.review.note)}<br>
+          <small>${esc(order.review.date || '')}</small>
+        </div>` : order.status === 'To Review' ? `
+        <div class="order-review-box">
+          <strong>Review this delivered order</strong>
+          <div class="form-row" style="margin-top:0.75rem">
+            <div class="form-group"><label>Rating</label><select id="review-rating-${esc(reviewId)}"><option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Okay</option><option value="2">2 - Bad</option><option value="1">1 - Very bad</option></select></div>
+            <div class="form-group"><label>Comment</label><input type="text" id="review-text-${esc(reviewId)}" placeholder="Write your review"></div>
+          </div>
+          <button class="btn-primary" type="button" style="padding:8px 14px" onclick="submitOrderReview('${esc(order.id)}')">Submit Review</button>
+        </div>` : '';
     return `
     <div class="order-list-row">
       <div>
@@ -1139,6 +1424,7 @@ function renderMyOrders() {
         Total: ${esc(order.total || '$0.00')}<br>
         Status: ${esc(order.status)}<br>
         Source: ${esc(order.source)}${order.payment ? '<br>Payment: '+esc(order.payment) : ''}
+        ${reviewBlock}
       </div>
     </div>
   `}).join('');
@@ -1306,7 +1592,9 @@ function confirmResetCode() {
 function renderAdminAccess() {
   const panel = document.getElementById('super-admin-panel');
   const list = document.getElementById('admin-access-list');
+  const blogNav = document.getElementById('admin-blog-nav');
   if(panel) panel.style.display = isSuperAdmin() ? 'block' : 'none';
+  if(blogNav) blogNav.style.display = isSuperAdmin() ? 'flex' : 'none';
   if(!list) return;
   list.innerHTML = adminEmails.map(email => {
     const normalized = normalizeEmail(email);
@@ -1428,6 +1716,7 @@ function updateOrderStatus(id, status) {
   const order = adminOrders.find(item => item.id === id);
   if(!order) return;
   order.status = status;
+  const customerStatus = status === 'Delivered' ? 'To Review' : status === 'Shipped' ? 'Shipped' : status === 'Pending' ? 'To Pay' : 'To Ship';
   if(order.invoiceId && invoices[order.invoiceId]) {
     invoices[order.invoiceId].status = status;
     saveInvoices();
@@ -1437,13 +1726,13 @@ function updateOrderStatus(id, status) {
     if(!Array.isArray(profile.orders)) return;
     const customerOrder = profile.orders.find(item => item.id === id);
     if(customerOrder) {
-      customerOrder.status = status === 'Delivered' ? 'Shipped' : status === 'Shipped' ? 'Shipped' : status === 'Pending' ? 'To Pay' : 'To Ship';
+      customerOrder.status = customerOrder.review && status === 'Delivered' ? 'Reviewed' : customerStatus;
     }
   });
   localStorage.setItem('dotCustomerProfiles', JSON.stringify(customerProfiles));
   if(currentUser?.orders) {
     const ownOrder = currentUser.orders.find(item => item.id === id);
-    if(ownOrder) ownOrder.status = status === 'Delivered' ? 'Shipped' : status === 'Shipped' ? 'Shipped' : status === 'Pending' ? 'To Pay' : 'To Ship';
+    if(ownOrder) ownOrder.status = ownOrder.review && status === 'Delivered' ? 'Reviewed' : customerStatus;
     saveCurrentUser();
   }
   saveAdminOrders();
@@ -1487,6 +1776,7 @@ function refreshScrollMotion() {
     '.about-visual',
     '.feature',
     '.info-panel',
+    '.blog-card',
     '.checkout-card',
     '.success-container',
     '.admin-stat',
@@ -1524,8 +1814,54 @@ function initScrollMotion() {
   window.addEventListener('scroll', updateScrollMotion, { passive: true });
   window.addEventListener('resize', updateScrollMotion);
 }
+function initBrowserHistory() {
+  const initialPage = location.hash ? location.hash.slice(1) : 'home';
+  history.replaceState({ page: initialPage }, '', location.hash || '#home');
+  if(initialPage !== 'home' && document.getElementById('page-'+initialPage)) {
+    showPage(initialPage, { skipHistory: true });
+  }
+  window.addEventListener('popstate', event => {
+    const page = event.state?.page || (location.hash ? location.hash.slice(1) : 'home');
+    if(!document.getElementById('page-'+page)) return;
+    isHistoryNavigation = true;
+    showPage(page, { skipHistory: true });
+    isHistoryNavigation = false;
+  });
+}
+function bindEnterKey(containerId, handler) {
+  const container = document.getElementById(containerId);
+  if(!container) return;
+  container.addEventListener('keydown', event => {
+    if(event.key !== 'Enter') return;
+    if(event.target?.tagName === 'TEXTAREA') return;
+    event.preventDefault();
+    handler();
+  });
+}
+function initKeyboardSubmit() {
+  bindEnterKey('modal-signin', handleSignin);
+  bindEnterKey('modal-signup', handleSignup);
+  bindEnterKey('modal-reset', () => {
+    if(document.getElementById('reset-step-email')?.classList.contains('active')) sendResetCode();
+    else confirmResetCode();
+  });
+  bindEnterKey('checkout-step-details', continueToPayment);
+  bindEnterKey('checkout-step-payment', placeOrder);
+  bindEnterKey('admin-orders', createManualInvoice);
+  bindEnterKey('admin-blogs', saveBlogPost);
+  const infoContent = document.getElementById('info-content');
+  if(infoContent) {
+    infoContent.addEventListener('keydown', event => {
+      if(event.key !== 'Enter' || !event.target?.id?.startsWith('comment-')) return;
+      event.preventDefault();
+      addBlogComment(event.target.id.replace('comment-', ''));
+    });
+  }
+}
 
 // ================== INIT ==================
 hydrateProducts();
 renderGrids();
+initBrowserHistory();
+initKeyboardSubmit();
 initScrollMotion();

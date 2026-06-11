@@ -10,6 +10,7 @@
   <ul>
     <li><a onclick="showPage('home')">Home</a></li>
     <li><a onclick="showPage('shop')">Shop</a></li>
+    <li><a onclick="openInfoPage('contact')">Contact</a></li>
     <li><a onclick="scrollToAbout()">About</a></li>
   </ul>
   <div class="nav-actions">
@@ -153,6 +154,7 @@
         <button type="button" data-account-tab="orders" onclick="showAccountTab('orders', this)">My Order</button>
         <button type="button" data-account-tab="shipping" onclick="showAccountTab('shipping', this)">Shipping Address</button>
         <button type="button" data-account-tab="cart" onclick="showAccountTab('cart', this)">Product Cart</button>
+        <button type="button" id="account-admin-btn" class="account-admin-btn" style="display:none" onclick="closeModal('modal-account');showPage('admin')">Admin Panel</button>
         <button type="button" class="account-logout" onclick="handleLogout()">Log Out</button>
       </div>
       <div class="account-panel" id="account-panel"></div>
@@ -583,6 +585,7 @@
       <div class="admin-nav-item" data-admin-permission="products" onclick="switchAdmin('products',this)">Products</div>
       <div class="admin-nav-item" data-admin-permission="stock" onclick="switchAdmin('stock',this)">Stock</div>
       <div class="admin-nav-item" data-admin-permission="orders" onclick="switchAdmin('orders',this)">Orders</div>
+      <div class="admin-nav-item" id="admin-blog-nav" style="display:none" onclick="switchAdmin('blogs',this)">Blog</div>
       <div style="padding:1.5rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.06)">
         <div style="font-size:0.8rem;color:var(--taupe);margin-bottom:8px">Logged in as</div>
         <div style="font-size:0.875rem;color:white;font-weight:600" id="admin-current-user">Admin User</div>
@@ -752,11 +755,42 @@
           </div>
           <button class="btn-primary" type="button" onclick="createManualInvoice()">Create Invoice</button>
         </div>
+        <div class="admin-toolbar" style="margin-top:0">
+          <input type="text" id="admin-order-search" placeholder="Search order ID..." oninput="renderAdminOrders()">
+        </div>
         <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
           <table class="data-table">
             <thead><tr><th>Order #</th><th>Customer</th><th>Items</th><th>Total</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
             <tbody id="admin-order-table"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- BLOG -->
+      <div id="admin-blogs" style="display:none">
+        <h2>Blog Posts</h2>
+        <p class="sub">Super admin can add, update, and delete blog posts.</p>
+        <div class="admin-access-panel">
+          <h3 style="font-size:1rem;font-weight:800;margin-bottom:0.75rem">Create / Edit Blog Post</h3>
+          <input type="hidden" id="blog-edit-id">
+          <div class="form-row">
+            <div class="form-group"><label>Title</label><input type="text" id="blog-title" placeholder="Post title"></div>
+            <div class="form-group">
+              <label>Photo</label>
+              <input type="hidden" id="blog-photo">
+              <input type="file" id="blog-photo-file" accept="image/*" onchange="readBlogPhoto(this)">
+              <small style="color:var(--text-muted)">Upload a photo from your PC, or add a video URL below.</small>
+            </div>
+          </div>
+          <div class="form-group"><label>Video URL</label><input type="url" id="blog-video" placeholder="https://...mp4 or YouTube link"></div>
+          <div class="form-group"><label>Description</label><textarea id="blog-description" rows="5" placeholder="Write blog post description"></textarea></div>
+          <div class="edit-actions">
+            <button class="btn-outline-dark" type="button" onclick="clearBlogForm()">Clear</button>
+            <button class="btn-primary" type="button" onclick="saveBlogPost()">Save Blog Post</button>
+          </div>
+        </div>
+        <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
+          <div id="admin-blog-list" class="admin-blog-list"></div>
         </div>
       </div>
 
