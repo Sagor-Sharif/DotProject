@@ -1,4 +1,13 @@
 // ================== DATA ==================
+function readStorage(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch (error) {
+    localStorage.removeItem(key);
+    return fallback;
+  }
+}
 const products = [
   { id:1, name:'Auto Cat Feeder', cat:'Smart Devices', price:49, emoji:'🐱', desc:'Fully 3D-printed body with automatic timer-based feeding mechanism. Perfect for busy cat owners.', isNew:true, isTop:true },
   { id:2, name:'Custom Keyring', cat:'Keychains & Rings', price:8, emoji:'🔑', desc:'Personalized keychain with your name, initial, or custom logo. Available in 12 colors.', isNew:true, isTop:true },
@@ -14,17 +23,17 @@ let cart = [];
 const SUPER_ADMIN_EMAIL = 'sagorsharif27@gmail.com';
 const BKASH_PERSONAL_NUMBER = '0175047924';
 const NAGAD_PERSONAL_NUMBER = '0175047924';
-let currentUser = JSON.parse(localStorage.getItem('dotCurrentUser') || 'null');
-let adminEmails = JSON.parse(localStorage.getItem('dotAdminEmails') || 'null') || [SUPER_ADMIN_EMAIL];
+let currentUser = readStorage('dotCurrentUser', null);
+let adminEmails = readStorage('dotAdminEmails', null) || [SUPER_ADMIN_EMAIL];
 const ALL_ADMIN_PERMISSIONS = ['dashboard','addProduct','products','editProduct','stock','orders','orderStatus'];
-let adminPermissions = JSON.parse(localStorage.getItem('dotAdminPermissions') || 'null') || {};
-let adminOrders = JSON.parse(localStorage.getItem('dotAdminOrders') || 'null') || [
+let adminPermissions = readStorage('dotAdminPermissions', null) || {};
+let adminOrders = readStorage('dotAdminOrders', null) || [
   { id:'DP-0064', customer:'Rafiq Ahmed', items:'Auto Cat Feeder x1', total:49, date:'Jun 08', status:'In Process' },
   { id:'DP-0063', customer:'Nusrat Jahan', items:'Custom Keyring x3', total:24, date:'Jun 07', status:'Shipped' },
   { id:'DP-0062', customer:'Tanvir Islam', items:'Fish Auto Feeder x1', total:35, date:'Jun 06', status:'Pending' },
   { id:'DP-0061', customer:'Sadia Hossain', items:'Mini Shelf x2', total:18, date:'Jun 05', status:'Delivered' }
 ];
-let invoices = JSON.parse(localStorage.getItem('dotInvoices') || 'null') || {};
+let invoices = readStorage('dotInvoices', null) || {};
 let lastInvoiceId = localStorage.getItem('dotLastInvoiceId') || '';
 let resetCode = '';
 let resetEmail = '';
@@ -33,6 +42,8 @@ function getNewProducts(){ return products.filter(p=>p.isNew); }
 function getTopProducts(){ return products.filter(p=>p.isTop); }
 
 function renderProductCard(p) {
+  const stock = Number(p.stock ?? 24);
+  const isAvailable = stock > 0 && p.status !== 'Out of Stock';
   return `<div class="product-card" onclick="openProductModal(${p.id})">
     <div class="product-img">
       ${p.isNew ? '<span class="product-badge-new">NEW</span>' : p.isTop ? '<span class="product-badge-hot">🔥 HOT</span>' : ''}
@@ -44,7 +55,7 @@ function renderProductCard(p) {
       <div class="product-desc">${p.desc.substring(0,80)}...</div>
       <div class="product-footer">
         <div class="product-price">$${p.price} <span>USD</span></div>
-        <button class="btn-add-cart" onclick="event.stopPropagation();addToCart(${p.id})">Add to Cart</button>
+        <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart(${p.id})">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
       </div>
     </div>
   </div>`;
@@ -88,8 +99,8 @@ function scrollToAbout() {
 }
 
 // ================== MODALS ==================
-function openModal(id){ document.getElementById(id).classList.add('open'); }
-function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function openModal(id){ document.getElementById(id)?.classList.add('open'); }
+function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
 function closeAllModals(){ document.querySelectorAll('.modal-page').forEach(m=>m.classList.remove('open')); }
 
 function openProductModal(id) {
@@ -118,9 +129,13 @@ function changeQty(delta) {
 function addToCart(id) {
   const p = products.find(x=>x.id===id);
   if(!p) return;
+  const stock = Number(p.stock ?? 24);
+  if(stock <= 0 || p.status === 'Out of Stock') { showToast('This product is out of stock.'); return; }
   const existing = cart.find(c=>c.id===id);
-  if(existing) existing.qty++;
-  else cart.push({...p, qty:1});
+  if(existing) {
+    if(existing.qty >= stock) { showToast('Only '+stock+' item(s) available in stock.'); return; }
+    existing.qty++;
+  } else cart.push({...p, qty:1});
   updateCartUI();
   showToast('🛒 '+p.name+' added to cart!');
 }
@@ -130,6 +145,9 @@ function addToCartFromModal() {
   const qty = parseInt(document.getElementById('modal-qty').value);
   const p = products.find(x=>x.id===id);
   if(!p) return;
+  const stock = Number(p.stock ?? 24);
+  if(stock <= 0 || p.status === 'Out of Stock') { showToast('This product is out of stock.'); return; }
+  if(qty > stock) { showToast('Only '+stock+' item(s) available in stock.'); return; }
   const existing = cart.find(c=>c.id===id);
   if(existing) existing.qty += qty;
   else cart.push({...p, qty});
@@ -226,7 +244,48 @@ function showCheckoutStage(stage = 'details') {
   }
 }
 
+function getCheckoutDetails() {
+  return {
+    name: document.getElementById('checkout-name')?.value.trim() || getCustomerName(),
+    email: normalizeEmail(document.getElementById('checkout-email')?.value || currentUser?.email || ''),
+    phone: document.getElementById('checkout-phone')?.value.trim() || currentUser?.phone || '',
+    address: document.getElementById('checkout-address')?.value.trim() || currentUser?.shippingAddress || '',
+    city: document.getElementById('checkout-city')?.value.trim() || '',
+    district: document.getElementById('checkout-district')?.value.trim() || ''
+  };
+}
+function fillCheckoutDetails() {
+  const fields = {
+    'checkout-name': getCustomerName(),
+    'checkout-email': currentUser?.email || '',
+    'checkout-phone': currentUser?.phone || '',
+    'checkout-address': currentUser?.shippingAddress || ''
+  };
+  Object.entries(fields).forEach(([id, value]) => {
+    const field = document.getElementById(id);
+    if(field && !field.value && value) field.value = value;
+  });
+}
+function validateCheckoutDetails() {
+  const details = getCheckoutDetails();
+  const checks = [
+    ['checkout-name', details.name, 'Please enter your full name.'],
+    ['checkout-email', details.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email), 'Please enter a valid email.'],
+    ['checkout-phone', details.phone, 'Please enter your phone number.'],
+    ['checkout-address', details.address, 'Please enter your shipping address.'],
+    ['checkout-city', details.city, 'Please enter your city.'],
+    ['checkout-district', details.district, 'Please enter your district.']
+  ];
+  const failed = checks.find(([, valid]) => !valid);
+  if(failed) {
+    showToast(failed[2]);
+    document.getElementById(failed[0])?.focus();
+    return false;
+  }
+  return true;
+}
 function continueToPayment() {
+  if(!validateCheckoutDetails()) return;
   showCheckoutStage('payment');
 }
 
@@ -243,6 +302,32 @@ function getSelectedPaymentMethod() {
 
 function validatePaymentDetails() {
   const method = getSelectedPaymentMethod();
+  if(method === 'card') {
+    const cardNumber = document.getElementById('card-number')?.value.replace(/\s+/g, '') || '';
+    const cardName = document.getElementById('card-name')?.value.trim();
+    const expiry = document.getElementById('card-expiry')?.value.trim();
+    const cvv = document.getElementById('card-cvv')?.value.trim();
+    if(!/^\d{12,19}$/.test(cardNumber)) {
+      showToast('Please enter a valid card number.');
+      document.getElementById('card-number')?.focus();
+      return false;
+    }
+    if(!cardName) {
+      showToast('Please enter the name on card.');
+      document.getElementById('card-name')?.focus();
+      return false;
+    }
+    if(!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) {
+      showToast('Please enter expiry as MM/YY.');
+      document.getElementById('card-expiry')?.focus();
+      return false;
+    }
+    if(!/^\d{3,4}$/.test(cvv)) {
+      showToast('Please enter a valid CVV.');
+      document.getElementById('card-cvv')?.focus();
+      return false;
+    }
+  }
   if(method === 'bkash') {
     const trxId = document.getElementById('bkash-trx-id')?.value.trim();
     if(!trxId) {
@@ -261,7 +346,7 @@ function validatePaymentDetails() {
   }
   return true;
 }
-function createInvoiceRecord(order) {
+function createInvoiceRecord(order, shouldRemember = true) {
   const invoiceId = order.invoiceId || ('INV-' + order.id.replace(/^DP-/, ''));
   const invoice = {
     id: invoiceId,
@@ -273,11 +358,13 @@ function createInvoiceRecord(order) {
     items: order.items || '',
     total: Number(order.total || 0),
     status: order.status || 'Pending',
-    source: order.source || 'Online'
+    source: order.source || 'Online',
+    address: order.address || '',
+    payment: order.payment || ''
   };
   invoices[invoiceId] = invoice;
   saveInvoices();
-  rememberLastInvoice(invoiceId);
+  if(shouldRemember) rememberLastInvoice(invoiceId);
   return invoice;
 }
 function pdfSafe(value) {
@@ -310,8 +397,10 @@ function invoicePdfBlob(invoice) {
     { text:invoice.customer || 'Customer', size:11, x:50, y:680 },
     { text:invoice.phone ? 'Phone: '+invoice.phone : '', size:11, x:50, y:664 },
     { text:invoice.email ? 'Email: '+invoice.email : '', size:11, x:50, y:648 },
-    { text:'Status: '+(invoice.status || 'Pending'), size:11, x:50, y:612 },
-    { text:'Source: '+(invoice.source || 'Online'), size:11, x:50, y:596 },
+    { text:invoice.address ? 'Address: '+invoice.address : '', size:11, x:50, y:632 },
+    { text:'Status: '+(invoice.status || 'Pending'), size:11, x:50, y:596 },
+    { text:'Source: '+(invoice.source || 'Online'), size:11, x:50, y:580 },
+    { text:invoice.payment ? 'Payment: '+invoice.payment : '', size:11, x:50, y:564 },
     { text:'Products', size:14, x:50, y:552 }
   ].filter(line => line.text);
   let y = 528;
@@ -378,6 +467,10 @@ function placeOrder() {
     showPage('home');
     return;
   }
+  if(!validateCheckoutDetails()) {
+    showCheckoutStage('details');
+    return;
+  }
   if(!validatePaymentDetails()) return;
   updateCheckoutSteps('confirm');
   const num = 'DP-' + String(Math.floor(Math.random()*9000)+1000);
@@ -386,22 +479,37 @@ function placeOrder() {
   const paymentMethod = getSelectedPaymentMethod();
   const orderItems = cart.map(item => item.name+' x'+item.qty).join(', ');
   const orderDate = new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' });
+  const details = getCheckoutDetails();
   const orderRecord = {
     id: num,
-    customer: getCustomerName(),
-    email: currentUser?.email || '',
-    phone: currentUser?.phone || '',
+    customer: details.name,
+    email: details.email,
+    phone: details.phone,
+    address: [details.address, details.city, details.district].filter(Boolean).join(', '),
     items: orderItems,
     total: orderTotal,
     date: orderDate,
     status: 'Pending',
-    source: 'Online'
+    source: 'Online',
+    payment: paymentMethod
   };
   const invoice = createInvoiceRecord(orderRecord);
   orderRecord.invoiceId = invoice.id;
   adminOrders.unshift({...orderRecord, date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit' })});
   saveAdminOrders();
+  cart.forEach(item => {
+    const product = products.find(product => product.id === item.id);
+    if(product) {
+      product.stock = Math.max(0, Number(product.stock || 0) - Number(item.qty || 0));
+      if(product.stock <= 0) product.status = 'Out of Stock';
+    }
+  });
+  saveProducts();
   if(currentUser) {
+    currentUser.firstName = currentUser.firstName || details.name.split(' ')[0] || '';
+    currentUser.lastName = currentUser.lastName || details.name.split(' ').slice(1).join(' ');
+    currentUser.phone = currentUser.phone || details.phone;
+    currentUser.shippingAddress = details.address;
     currentUser.orders = Array.isArray(currentUser.orders) ? currentUser.orders : [];
     currentUser.orders.unshift({
       id: num,
@@ -411,7 +519,8 @@ function placeOrder() {
       date: orderDate,
       invoiceId: invoice.id,
       source: 'Online',
-      payment: paymentMethod
+      payment: paymentMethod,
+      address: orderRecord.address
     });
     persistCustomerProfile();
   }
@@ -510,7 +619,8 @@ function saveCurrentUser(){ localStorage.setItem('dotCurrentUser', JSON.stringif
 function esc(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 function hydrateProducts(){
   migrateAdminAccess();
-  const saved = JSON.parse(localStorage.getItem('dotProducts') || 'null');
+  migrateOrderInvoices();
+  const saved = readStorage('dotProducts', null);
   if(saved && Array.isArray(saved)) products.splice(0, products.length, ...saved);
   products.forEach((p, index) => {
     p.id = p.id || index + 1;
@@ -521,6 +631,22 @@ function hydrateProducts(){
     p.photos = Array.isArray(p.photos) ? p.photos.filter(Boolean) : (typeof p.photos === 'string' ? p.photos.split(',').map(photo => photo.trim()).filter(Boolean) : []);
   });
   saveProducts();
+}
+function migrateOrderInvoices() {
+  let changed = false;
+  adminOrders.forEach(order => {
+    if(order.invoiceId && invoices[order.invoiceId]) return;
+    const invoice = createInvoiceRecord({
+      ...order,
+      email: order.email || '',
+      phone: order.phone || '',
+      source: order.source || 'Store',
+      date: order.date || new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
+    }, false);
+    order.invoiceId = invoice.id;
+    changed = true;
+  });
+  if(changed) saveAdminOrders();
 }
 function visibleProducts(){ return products.filter(p => p.status === 'Active'); }
 function getNewProducts(){ return visibleProducts().filter(p=>p.isNew); }
@@ -554,7 +680,12 @@ function productGalleryVisual(item, size='5rem') {
 }
 function selectProductPhoto(index) {
   const modal = document.getElementById('modal-product');
-  const gallery = JSON.parse(modal.dataset.gallery || '[]');
+  let gallery = [];
+  try {
+    gallery = JSON.parse(modal?.dataset.gallery || '[]');
+  } catch (error) {
+    gallery = [];
+  }
   const item = gallery[index] || gallery[0];
   if(!item) return;
   const img = document.getElementById('modal-product-img');
@@ -565,6 +696,8 @@ function selectProductPhoto(index) {
   });
 }
 function renderProductCard(p) {
+  const stock = Number(p.stock ?? 24);
+  const isAvailable = stock > 0 && p.status !== 'Out of Stock';
   return `<div class="product-card" onclick="openProductModal(${p.id})">
     <div class="product-img">
       ${p.isNew ? '<span class="product-badge-new">NEW</span>' : p.isTop ? '<span class="product-badge-hot">HOT</span>' : ''}
@@ -576,7 +709,7 @@ function renderProductCard(p) {
       <div class="product-desc">${esc(p.desc).substring(0,80)}...</div>
       <div class="product-footer">
         <div class="product-price">$${Number(p.price).toFixed(2)} <span>USD</span></div>
-        <button class="btn-add-cart" onclick="event.stopPropagation();addToCart(${p.id})">Add to Cart</button>
+        <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart(${p.id})">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
       </div>
     </div>
   </div>`;
@@ -818,6 +951,7 @@ function showPage(id) {
   if(page) page.classList.add('active');
   window.scrollTo(0,0);
   if(id==='checkout') {
+    fillCheckoutDetails();
     renderCheckoutSummary();
     syncMerchantPaymentNumbers();
     showCheckoutStage('details');
@@ -833,6 +967,7 @@ function showPage(id) {
     document.getElementById('admin-current-user').textContent = currentUser.email;
     openDefaultAdminSection();
   }
+  setTimeout(refreshScrollMotion, 0);
   closeAllModals();
 }
 function scrollToShop() { showPage('shop'); }
@@ -896,7 +1031,7 @@ function nameFromEmail(email) {
 function ensureCustomerProfile(user) {
   if(!user) return null;
   const email = normalizeEmail(user.email);
-  const savedProfiles = JSON.parse(localStorage.getItem('dotCustomerProfiles') || '{}');
+  const savedProfiles = readStorage('dotCustomerProfiles', {});
   const saved = savedProfiles[email] || {};
   return {
     email,
@@ -921,7 +1056,7 @@ function avatarMarkup(user=currentUser, size='nav') {
 }
 function persistCustomerProfile() {
   if(!currentUser || !currentUser.email) return;
-  const savedProfiles = JSON.parse(localStorage.getItem('dotCustomerProfiles') || '{}');
+  const savedProfiles = readStorage('dotCustomerProfiles', {});
   savedProfiles[normalizeEmail(currentUser.email)] = currentUser;
   localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
   saveCurrentUser();
@@ -1092,8 +1227,17 @@ function handleLogout() {
 }
 function handleSignin() {
   const email = normalizeEmail(document.getElementById('signin-email').value);
+  const password = document.getElementById('signin-password')?.value || '';
   if(!email) { showToast('Please enter your email.'); return; }
+  if(password.length < 6) { showToast('Please enter your password.'); return; }
+  const savedProfiles = readStorage('dotCustomerProfiles', {});
+  const savedProfile = savedProfiles[email];
+  if(savedProfile?.password && savedProfile.password !== password) {
+    showToast('Password does not match this account.');
+    return;
+  }
   currentUser = ensureCustomerProfile({ email });
+  if(!currentUser.password) currentUser.password = password;
   persistCustomerProfile();
   closeModal('modal-signin');
   updateAuthUI();
@@ -1108,11 +1252,16 @@ function handleSignin() {
 function handleSignup() {
   const email = normalizeEmail(document.getElementById('signup-email').value);
   const password = document.getElementById('signup-password').value;
-  if(!email || password.length < 6) { showToast('Enter email and a 6+ character password.'); return; }
+  const phone = document.getElementById('signup-phone')?.value.trim() || '';
+  if(!email || password.length < 8) { showToast('Enter email and an 8+ character password.'); return; }
+  if(!phone) { showToast('Please enter your phone number.'); return; }
+  if(!document.getElementById('terms')?.checked) { showToast('Please agree to the terms first.'); return; }
   currentUser = ensureCustomerProfile({
     email,
     firstName: document.getElementById('signup-first-name').value.trim(),
-    lastName: document.getElementById('signup-last-name').value.trim()
+    lastName: document.getElementById('signup-last-name').value.trim(),
+    phone,
+    password
   });
   persistCustomerProfile();
   closeModal('modal-signup');
@@ -1144,6 +1293,13 @@ function confirmResetCode() {
   const password = document.getElementById('reset-new-password').value;
   if(code !== resetCode) { showToast('Reset code is not correct.'); return; }
   if(password.length < 6) { showToast('New password must be at least 6 characters.'); return; }
+  const savedProfiles = readStorage('dotCustomerProfiles', {});
+  savedProfiles[normalizeEmail(resetEmail)] = {...(savedProfiles[normalizeEmail(resetEmail)] || { email: resetEmail }), password};
+  localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
+  if(currentUser && normalizeEmail(currentUser.email) === normalizeEmail(resetEmail)) {
+    currentUser.password = password;
+    saveCurrentUser();
+  }
   closeModal('modal-reset');
   showToast('Password updated for '+resetEmail+'.');
 }
@@ -1276,7 +1432,7 @@ function updateOrderStatus(id, status) {
     invoices[order.invoiceId].status = status;
     saveInvoices();
   }
-  const customerProfiles = JSON.parse(localStorage.getItem('dotCustomerProfiles') || '{}');
+  const customerProfiles = readStorage('dotCustomerProfiles', {});
   Object.values(customerProfiles).forEach(profile => {
     if(!Array.isArray(profile.orders)) return;
     const customerOrder = profile.orders.find(item => item.id === id);
@@ -1299,11 +1455,77 @@ function updateOrderStatus(id, status) {
 // ================== TOAST ==================
 function showToast(msg) {
   const t = document.getElementById('toast');
+  if(!t) return;
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'), 3000);
 }
 
+// ================== SCROLL MOTION ==================
+let motionObserver = null;
+function ensureMotionChrome() {
+  if(!document.querySelector('.scroll-progress')) {
+    const progress = document.createElement('div');
+    progress.className = 'scroll-progress';
+    document.body.prepend(progress);
+  }
+  if(!document.querySelector('.motion-field')) {
+    const field = document.createElement('div');
+    field.className = 'motion-field';
+    document.body.prepend(field);
+  }
+}
+function refreshScrollMotion() {
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const targets = document.querySelectorAll([
+    '.hero-content > *',
+    '.hero-card',
+    '.section-header',
+    '.category-card',
+    '.product-card',
+    '.about-text',
+    '.about-visual',
+    '.feature',
+    '.info-panel',
+    '.checkout-card',
+    '.success-container',
+    '.admin-stat',
+    '.data-table',
+    '.footer-col'
+  ].join(','));
+  targets.forEach((el, index) => {
+    if(!el.classList.contains('motion-reveal')) {
+      el.classList.add('motion-reveal');
+      el.style.setProperty('--motion-index', String(index % 8));
+    }
+    if(motionObserver && !el.classList.contains('is-visible')) motionObserver.observe(el);
+  });
+  document.querySelectorAll('.hero-card.featured, .about-visual, .logo-dot').forEach(el => el.classList.add('motion-float'));
+}
+function updateScrollMotion() {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+  const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+  document.documentElement.style.setProperty('--scroll-progress', String(Math.min(1, scrollTop / maxScroll)));
+  document.documentElement.style.setProperty('--scroll-y', String(scrollTop));
+}
+function initScrollMotion() {
+  if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  ensureMotionChrome();
+  motionObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if(entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        motionObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  refreshScrollMotion();
+  updateScrollMotion();
+  window.addEventListener('scroll', updateScrollMotion, { passive: true });
+  window.addEventListener('resize', updateScrollMotion);
+}
+
 // ================== INIT ==================
 hydrateProducts();
 renderGrids();
+initScrollMotion();
