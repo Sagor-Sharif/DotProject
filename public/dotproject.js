@@ -47,6 +47,8 @@ let blogPosts = readStorage('dotBlogPosts', null) || [
     comments: []
   }
 ];
+let productReviews = readStorage('dotProductReviews', null) || [];
+let activeBlogPostId = null;
 let lastInvoiceId = localStorage.getItem('dotLastInvoiceId') || '';
 let resetCode = '';
 let resetEmail = '';
@@ -540,6 +542,7 @@ function placeOrder() {
   const orderTotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.qty || 0)), 0);
   const paymentMethod = getSelectedPaymentMethod();
   const orderItems = cart.map(item => item.name+' x'+item.qty).join(', ');
+  const productItems = cart.map(item => ({ id: item.id, name: item.name, qty: item.qty }));
   const orderDate = new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' });
   const details = getCheckoutDetails();
   const orderRecord = {
@@ -553,7 +556,8 @@ function placeOrder() {
     date: orderDate,
     status: 'Pending',
     source: 'Online',
-    payment: paymentMethod
+    payment: paymentMethod,
+    productItems
   };
   const invoice = createInvoiceRecord(orderRecord);
   orderRecord.invoiceId = invoice.id;
@@ -563,6 +567,7 @@ function placeOrder() {
     const product = products.find(product => product.id === item.id);
     if(product) {
       product.stock = Math.max(0, Number(product.stock || 0) - Number(item.qty || 0));
+      product.sold = Number(product.sold || 0) + Number(item.qty || 0);
       if(product.stock <= 0) product.status = 'Out of Stock';
     }
   });
@@ -582,7 +587,8 @@ function placeOrder() {
       invoiceId: invoice.id,
       source: 'Online',
       payment: paymentMethod,
-      address: orderRecord.address
+      address: orderRecord.address,
+      productItems
     });
     persistCustomerProfile();
   }
@@ -676,15 +682,373 @@ function getAdminPermissions(email=currentUser?.email){
   return adminPermissions[normalized] || [];
 }
 function canAdmin(permission){ return isSuperAdmin() || getAdminPermissions().includes(permission); }
-function saveProducts(){ localStorage.setItem('dotProducts', JSON.stringify(products)); }
-function saveAdmins(){ localStorage.setItem('dotAdminEmails', JSON.stringify(adminEmails)); }
-function saveAdminPermissions(){ localStorage.setItem('dotAdminPermissions', JSON.stringify(adminPermissions)); }
-function saveAdminOrders(){ localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders)); }
-function saveInvoices(){ localStorage.setItem('dotInvoices', JSON.stringify(invoices)); }
-function saveBlogPosts(){ localStorage.setItem('dotBlogPosts', JSON.stringify(blogPosts)); }
+function dotDb(){ return window.__dotSupabase || null; }
+function hasDotDb(){ return Boolean(dotDb()); }
+function formatDbDate(value, options={ month:'short', day:'2-digit', year:'numeric' }) {
+  if(!value) return '';
+  return new Date(value).toLocaleDateString('en-US', options);
+}
+function productToDbRow(product) {
+  return {
+    local_id: String(product.id),
+    name: product.name,
+    category: product.cat,
+    description: product.desc || '',
+    price: Number(product.price || 0),
+    stock: Number(product.stock || 0),
+    sold: Number(product.sold || 0),
+    status: product.status || 'Active',
+    photo: product.photo || '',
+    photos: photoListFrom(product.photos),
+    emoji: product.emoji || '3D',
+    is_new: Boolean(product.isNew),
+    is_top: Boolean(product.isTop)
+  };
+}
+function productFromDbRow(row) {
+  return {
+    id: row.local_id || row.id,
+    name: row.name,
+    cat: row.category,
+    price: Number(row.price || 0),
+    emoji: row.emoji || '3D',
+    desc: row.description || '',
+    photo: row.photo || '',
+    photos: Array.isArray(row.photos) ? row.photos : [],
+    stock: Number(row.stock || 0),
+    sold: Number(row.sold || 0),
+    status: row.status || 'Active',
+    isNew: Boolean(row.is_new),
+    isTop: Boolean(row.is_top)
+  };
+}
+function orderToDbRow(order) {
+  return {
+    id: String(order.id),
+    customer_email: order.email || '',
+    customer_name: order.customer || 'Customer',
+    phone: order.phone || '',
+    address: order.address || '',
+    items: Array.isArray(order.productItems) ? order.productItems : orderProductItems(order),
+    total: Number(order.total || 0),
+    payment_method: order.payment || 'cod',
+    status: order.status || 'Pending',
+    source: order.source || 'Online'
+  };
+}
+function orderFromDbRow(row) {
+  const items = Array.isArray(row.items) ? row.items : [];
+  return {
+    id: row.id,
+    customer: row.customer_name || 'Customer',
+    email: row.customer_email || '',
+    phone: row.phone || '',
+    address: row.address || '',
+    items: items.length ? items.map(item => `${item.name || item.id || 'Product'} x${item.qty || 1}`).join(', ') : '',
+    productItems: items,
+    total: Number(row.total || 0),
+    payment: row.payment_method || '',
+    status: row.status || 'Pending',
+    source: row.source || 'Online',
+    date: formatDbDate(row.created_at, { month:'short', day:'2-digit' })
+  };
+}
+function invoiceToDbRow(invoice) {
+  return {
+    id: String(invoice.id),
+    order_id: invoice.orderId || null,
+    customer_name: invoice.customer || 'Customer',
+    customer_email: invoice.email || '',
+    phone: invoice.phone || '',
+    address: invoice.address || '',
+    items: invoice.items || '',
+    total: Number(invoice.total || 0),
+    status: invoice.status || 'Pending',
+    source: invoice.source || 'Online',
+    payment_method: invoice.payment || ''
+  };
+}
+function invoiceFromDbRow(row) {
+  return {
+    id: row.id,
+    orderId: row.order_id || '',
+    customer: row.customer_name || 'Customer',
+    email: row.customer_email || '',
+    phone: row.phone || '',
+    address: row.address || '',
+    items: row.items || '',
+    total: Number(row.total || 0),
+    status: row.status || 'Pending',
+    source: row.source || 'Online',
+    payment: row.payment_method || '',
+    date: formatDbDate(row.created_at)
+  };
+}
+function blogToDbRow(post) {
+  return {
+    local_id: String(post.id),
+    title: post.title,
+    description: post.description || '',
+    photo: post.photo || '',
+    video: post.video || '',
+    author_email: currentUser?.email || SUPER_ADMIN_EMAIL
+  };
+}
+function blogFromDbRow(row) {
+  const likes = Array.isArray(row.blog_likes) ? row.blog_likes : [];
+  const comments = Array.isArray(row.blog_comments) ? row.blog_comments : [];
+  return {
+    id: row.local_id || row.id,
+    dbId: row.id,
+    title: row.title,
+    description: row.description || '',
+    photo: row.photo || '',
+    video: row.video || '',
+    date: formatDbDate(row.created_at),
+    likes: likes.length,
+    likedBy: likes.map(like => like.user_email).filter(Boolean),
+    comments: comments.map(comment => ({
+      name: comment.name || 'Guest',
+      text: comment.comment || '',
+      date: formatDbDate(comment.created_at)
+    }))
+  };
+}
+function customerProfileToDbRow(profile) {
+  return {
+    email: normalizeEmail(profile.email),
+    first_name: profile.firstName || '',
+    last_name: profile.lastName || '',
+    phone: profile.phone || '',
+    shipping_address: profile.address || profile.shippingAddress || '',
+    photo: profile.photo || '',
+    metadata: profile
+  };
+}
+function customerProfileFromDbRow(row) {
+  return {
+    ...(row.metadata || {}),
+    email: row.email,
+    firstName: row.first_name || row.metadata?.firstName || '',
+    lastName: row.last_name || row.metadata?.lastName || '',
+    phone: row.phone || row.metadata?.phone || '',
+    address: row.shipping_address || row.metadata?.address || '',
+    photo: row.photo || row.metadata?.photo || ''
+  };
+}
+function productReviewToDbRow(review) {
+  return {
+    id: String(review.id),
+    order_id: review.orderId || '',
+    product_local_id: String(review.productId || ''),
+    product_name: review.productName || 'DotProject product',
+    customer_name: review.customer || 'Customer',
+    customer_email: review.email || '',
+    rating: Number(review.rating || 5),
+    comment: review.comment || review.note || '',
+    status: review.status || 'pending'
+  };
+}
+function productReviewFromDbRow(row) {
+  return {
+    id: row.id,
+    orderId: row.order_id || '',
+    productId: row.product_local_id || '',
+    productName: row.product_name || 'DotProject product',
+    customer: row.customer_name || 'Customer',
+    email: row.customer_email || '',
+    rating: Number(row.rating || 5),
+    comment: row.comment || '',
+    status: row.status || 'pending',
+    date: formatDbDate(row.created_at)
+  };
+}
+async function syncProductsToSupabase(){ if(hasDotDb()) await dotDb().from('products').upsert(products.map(productToDbRow), { onConflict: 'local_id' }); }
+async function syncAdminsToSupabase(){
+  if(!hasDotDb()) return;
+  const rows = adminEmails.map(email => {
+    const normalized = normalizeEmail(email);
+    return { email: normalized, permissions: adminPermissions[normalized] || [], is_super_admin: normalized === SUPER_ADMIN_EMAIL };
+  });
+  await dotDb().from('admin_access').upsert(rows, { onConflict: 'email' });
+}
+async function syncOrdersToSupabase(){ if(hasDotDb() && adminOrders.length) await dotDb().from('orders').upsert(adminOrders.map(orderToDbRow), { onConflict: 'id' }); }
+async function syncInvoicesToSupabase(){
+  const rows = Object.values(invoices).map(invoiceToDbRow);
+  if(hasDotDb() && rows.length) await dotDb().from('invoices').upsert(rows, { onConflict: 'id' });
+}
+async function syncCurrentUserToSupabase(){ if(hasDotDb() && currentUser?.email) await dotDb().from('customer_profiles').upsert(customerProfileToDbRow(currentUser), { onConflict: 'email' }); }
+async function syncProductReviewsToSupabase(){
+  if(hasDotDb() && productReviews.length) await dotDb().from('product_reviews').upsert(productReviews.map(productReviewToDbRow), { onConflict: 'id' });
+}
+async function syncBlogPostsToSupabase(){
+  if(!hasDotDb() || !blogPosts.length) return;
+  const db = dotDb();
+  const { data: savedPosts, error } = await db.from('blog_posts').upsert(blogPosts.map(blogToDbRow), { onConflict: 'local_id' }).select('id,local_id');
+  if(error) throw error;
+  for(const saved of savedPosts || []) {
+    const post = blogPosts.find(item => String(item.id) === String(saved.local_id));
+    if(!post) continue;
+    await db.from('blog_likes').delete().eq('post_id', saved.id);
+    await db.from('blog_comments').delete().eq('post_id', saved.id);
+    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
+    if(likedBy.length) await db.from('blog_likes').insert(likedBy.map(email => ({ post_id: saved.id, user_email: email })));
+    const comments = Array.isArray(post.comments) ? post.comments : [];
+    if(comments.length) await db.from('blog_comments').insert(comments.map(comment => ({ post_id: saved.id, user_email: '', name: comment.name || 'Guest', comment: comment.text || '' })));
+  }
+}
+function runSupabaseSync(task, successMessage='') {
+  if(!hasDotDb()) return;
+  task().then(() => {
+    if(successMessage) showToast(successMessage);
+  }).catch(error => {
+    console.error('Supabase sync failed:', error);
+    showToast('Supabase sync needs setup. Check schema and keys.');
+  });
+}
+async function syncSupabaseData() {
+  if(!hasDotDb()) return;
+  const db = dotDb();
+  try {
+    const [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult] = await Promise.all([
+      db.from('products').select('*').order('created_at', { ascending: true }),
+      db.from('admin_access').select('*').order('created_at', { ascending: true }),
+      db.from('orders').select('*').order('created_at', { ascending: false }),
+      db.from('invoices').select('*').order('created_at', { ascending: false }),
+      db.from('blog_posts').select('*, blog_likes(user_email), blog_comments(name,comment,created_at,user_email)').order('created_at', { ascending: false }),
+      db.from('product_reviews').select('*').order('created_at', { ascending: false }),
+      currentUser?.email ? db.from('customer_profiles').select('*').eq('email', normalizeEmail(currentUser.email)).maybeSingle() : Promise.resolve({ data:null, error:null })
+    ]);
+    [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult].forEach(result => { if(result.error) throw result.error; });
+    if(productResult.data?.length) {
+      products.splice(0, products.length, ...productResult.data.map(productFromDbRow));
+      localStorage.setItem('dotProducts', JSON.stringify(products));
+    } else {
+      await syncProductsToSupabase();
+    }
+    if(adminResult.data?.length) {
+      adminEmails = adminResult.data.map(row => normalizeEmail(row.email)).filter(Boolean);
+      adminPermissions = {};
+      adminResult.data.forEach(row => { adminPermissions[normalizeEmail(row.email)] = row.permissions || []; });
+      migrateAdminAccess();
+    } else {
+      await syncAdminsToSupabase();
+    }
+    if(orderResult.data?.length) {
+      adminOrders = orderResult.data.map(orderFromDbRow);
+      localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders));
+    }
+    if(invoiceResult.data?.length) {
+      invoices = {};
+      invoiceResult.data.forEach(row => { invoices[row.id] = invoiceFromDbRow(row); });
+      localStorage.setItem('dotInvoices', JSON.stringify(invoices));
+    }
+    if(blogResult.data?.length) {
+      blogPosts = blogResult.data.map(blogFromDbRow);
+      localStorage.setItem('dotBlogPosts', JSON.stringify(blogPosts));
+    } else {
+      await syncBlogPostsToSupabase();
+    }
+    if(reviewResult.data?.length) {
+      productReviews = reviewResult.data.map(productReviewFromDbRow);
+      localStorage.setItem('dotProductReviews', JSON.stringify(productReviews));
+    } else {
+      await syncProductReviewsToSupabase();
+    }
+    if(profileResult.data) {
+      currentUser = customerProfileFromDbRow(profileResult.data);
+      localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser));
+    }
+    renderGrids();
+    updateAuthUI();
+    renderAdminBlogs();
+    renderAdminOrders();
+    renderAdminDashboard();
+    rerenderBlogIfOpen();
+    showToast('Supabase database connected.');
+  } catch (error) {
+    console.error('Supabase load failed:', error);
+    showToast('Supabase is not ready yet. Check keys and schema.');
+  }
+}
+window.syncSupabaseData = syncSupabaseData;
+function saveProducts(){ localStorage.setItem('dotProducts', JSON.stringify(products)); runSupabaseSync(syncProductsToSupabase); }
+function saveAdmins(){ localStorage.setItem('dotAdminEmails', JSON.stringify(adminEmails)); runSupabaseSync(syncAdminsToSupabase); }
+function saveAdminPermissions(){ localStorage.setItem('dotAdminPermissions', JSON.stringify(adminPermissions)); runSupabaseSync(syncAdminsToSupabase); }
+function saveAdminOrders(){ localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders)); runSupabaseSync(syncOrdersToSupabase); }
+function saveInvoices(){ localStorage.setItem('dotInvoices', JSON.stringify(invoices)); runSupabaseSync(syncInvoicesToSupabase); }
+function saveBlogPosts(){ localStorage.setItem('dotBlogPosts', JSON.stringify(blogPosts)); runSupabaseSync(syncBlogPostsToSupabase); }
+function saveProductReviews(){ localStorage.setItem('dotProductReviews', JSON.stringify(productReviews)); runSupabaseSync(syncProductReviewsToSupabase); }
 function rememberLastInvoice(id){ lastInvoiceId = id; localStorage.setItem('dotLastInvoiceId', id); }
-function saveCurrentUser(){ localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser)); }
+function saveCurrentUser(){ localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser)); runSupabaseSync(syncCurrentUserToSupabase); }
 function esc(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function findProductFromOrderItem(name) {
+  const target = String(name || '').replace(/\sx\s*\d+$/i, '').trim().toLowerCase();
+  return products.find(product => product.name.toLowerCase() === target) ||
+    products.find(product => target.includes(product.name.toLowerCase()) || product.name.toLowerCase().includes(target));
+}
+function orderProductItems(order) {
+  if(Array.isArray(order?.productItems) && order.productItems.length) return order.productItems;
+  if(Array.isArray(order?.productIds) && order.productIds.length) {
+    return order.productIds.map(id => {
+      const product = products.find(item => String(item.id) === String(id));
+      return product ? { id: product.id, name: product.name, qty: 1 } : null;
+    }).filter(Boolean);
+  }
+  return String(order?.items || '').split(',').map(item => {
+    const qtyMatch = item.trim().match(/\sx\s*(\d+)$/i);
+    const product = findProductFromOrderItem(item);
+    return product ? { id: product.id, name: product.name, qty: qtyMatch ? Number(qtyMatch[1]) : 1 } : null;
+  }).filter(Boolean);
+}
+function reviewStars(rating, interactive=false, inputName='') {
+  const value = Math.max(0, Math.min(5, Math.round(Number(rating || 0))));
+  if(interactive) {
+    const safeName = String(inputName).replace(/[^a-z0-9_-]/gi, '-');
+    return `<div class="review-stars-input" id="${esc(safeName)}-wrap">
+      <input type="hidden" id="${esc(safeName)}" value="5">
+      ${[1,2,3,4,5].map(star => `<button type="button" class="star-btn filled" onclick="setReviewRating('${esc(safeName)}',${star})">★</button>`).join('')}
+    </div>`;
+  }
+  return `<span class="review-stars">${[1,2,3,4,5].map(star => `<span class="${star <= value ? 'filled' : ''}">★</span>`).join('')}</span>`;
+}
+function setReviewRating(inputId, rating) {
+  const input = document.getElementById(inputId);
+  const wrap = document.getElementById(inputId+'-wrap');
+  if(input) input.value = rating;
+  wrap?.querySelectorAll('.star-btn').forEach((button, index) => {
+    button.classList.toggle('filled', index < rating);
+  });
+}
+function productApprovedReviews(productId) {
+  return productReviews.filter(review => String(review.productId) === String(productId) && review.status === 'approved');
+}
+function productReviewStats(productId) {
+  const approved = productApprovedReviews(productId);
+  const avg = approved.length ? approved.reduce((sum, review) => sum + Number(review.rating || 0), 0) / approved.length : 0;
+  return { count: approved.length, avg };
+}
+function productReviewSummaryMarkup(productId) {
+  const stats = productReviewStats(productId);
+  return `<div class="product-review-summary">${reviewStars(stats.avg)} <span>${stats.count ? stats.avg.toFixed(1)+' ('+stats.count+' review'+(stats.count > 1 ? 's' : '')+')' : 'No reviews yet'}</span></div>`;
+}
+function productReviewListMarkup(productId) {
+  const approved = productApprovedReviews(productId).slice(-4).reverse();
+  if(!approved.length) return '<p>No customer reviews yet.</p>';
+  return approved.map(review => `
+    <div class="product-review-card">
+      <div>${reviewStars(review.rating)} <strong>${esc(review.customer || 'Customer')}</strong></div>
+      <p>${esc(review.comment)}</p>
+      <small>${esc(review.date || '')}</small>
+    </div>`).join('');
+}
+function toggleProductReviews() {
+  const list = document.getElementById('modal-product-reviews');
+  if(list) list.classList.toggle('collapsed');
+}
+function pendingProductReviews() {
+  return productReviews.filter(review => review.status === 'pending');
+}
 function hydrateProducts(){
   migrateAdminAccess();
   migrateOrderInvoices();
@@ -694,6 +1058,7 @@ function hydrateProducts(){
     p.id = p.id || index + 1;
     p.photo = p.photo || '';
     p.stock = Number.isFinite(Number(p.stock)) ? Number(p.stock) : 24;
+    p.sold = Number.isFinite(Number(p.sold)) ? Number(p.sold) : 0;
     p.status = p.status || 'Active';
     p.emoji = p.emoji || '3D';
     p.photos = Array.isArray(p.photos) ? p.photos.filter(Boolean) : (typeof p.photos === 'string' ? p.photos.split(',').map(photo => photo.trim()).filter(Boolean) : []);
@@ -774,6 +1139,7 @@ function renderProductCard(p) {
     <div class="product-info">
       <div class="product-category">${esc(p.cat)}</div>
       <div class="product-name">${esc(p.name)}</div>
+      ${productReviewSummaryMarkup(p.id)}
       <div class="product-desc">${esc(p.desc).substring(0,80)}...</div>
       <div class="product-footer">
         <div class="product-price">$${Number(p.price).toFixed(2)} <span>USD</span></div>
@@ -870,6 +1236,7 @@ const infoPages = {
 };
 function openInfoPage(key) {
   const info = infoPages[key] || infoPages.contact;
+  if(key !== 'blog') activeBlogPostId = null;
   document.getElementById('info-badge').textContent = info.badge;
   document.getElementById('info-title').textContent = info.title;
   document.getElementById('info-subtitle').textContent = info.subtitle;
@@ -898,30 +1265,59 @@ function renderBlogPosts() {
   if(!blogPosts.length) return '<div class="account-empty">No blog posts yet.</div>';
   return `<div class="blog-grid">${blogPosts.map(post => {
     const comments = Array.isArray(post.comments) ? post.comments : [];
-    return `<article class="blog-card">
+    return `<article class="blog-card blog-card-preview" role="button" tabindex="0" onclick="openBlogPost('${esc(post.id)}')" onkeydown="handleBlogCardKey(event,'${esc(post.id)}')">
       ${blogMediaMarkup(post)}
       <div class="blog-body">
         <div class="blog-meta">${esc(post.date || '')}</div>
         <h3>${esc(post.title)}</h3>
-        <p>${esc(post.description)}</p>
-        <div class="blog-actions">
-          <button class="btn-outline-dark" type="button" onclick="likeBlogPost('${esc(post.id)}')">Like (${Number(post.likes || 0)})</button>
-          <button class="btn-outline-dark" type="button" onclick="document.getElementById('comment-${esc(post.id)}')?.focus()">Comment (${comments.length})</button>
-        </div>
-        <div class="blog-comments">
-          ${comments.slice(-4).map(comment => `<div class="blog-comment"><strong>${esc(comment.name)}</strong>: ${esc(comment.text)}</div>`).join('')}
-        </div>
-        <div class="blog-comment-form">
-          <input type="text" id="comment-${esc(post.id)}" placeholder="Write a comment">
-          <button class="btn-primary" type="button" onclick="addBlogComment('${esc(post.id)}')">Post</button>
+        <p class="blog-excerpt">${esc(post.description)}</p>
+        <div class="blog-counts" aria-label="Post reactions">
+          <span>Like (${Number(post.likes || 0)})</span>
+          <span>Comment (${comments.length})</span>
         </div>
       </div>
     </article>`;
   }).join('')}</div>`;
 }
+function handleBlogCardKey(event, id) {
+  if(event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  openBlogPost(id);
+}
+function openBlogPost(id) {
+  const post = blogPosts.find(item => item.id === id);
+  if(!post) return;
+  activeBlogPostId = id;
+  document.getElementById('info-content').innerHTML = renderBlogPostDetail(post);
+  setTimeout(refreshScrollMotion, 0);
+}
+function renderBlogPostDetail(post) {
+  const comments = Array.isArray(post.comments) ? post.comments : [];
+  return `<article class="blog-card blog-detail">
+    <button class="btn-outline-dark blog-back" type="button" onclick="activeBlogPostId=null;document.getElementById('info-content').innerHTML=renderBlogPosts();setTimeout(refreshScrollMotion,0)">Back to Blog</button>
+    ${blogMediaMarkup(post)}
+    <div class="blog-body">
+      <div class="blog-meta">${esc(post.date || '')}</div>
+      <h3>${esc(post.title)}</h3>
+      <p class="blog-full-text">${esc(post.description)}</p>
+      <div class="blog-actions">
+        <button class="btn-outline-dark" type="button" onclick="likeBlogPost('${esc(post.id)}')">Like (${Number(post.likes || 0)})</button>
+        <button class="btn-outline-dark" type="button" onclick="document.getElementById('comment-${esc(post.id)}')?.focus()">Comment (${comments.length})</button>
+      </div>
+      <div class="blog-comments">
+        ${comments.length ? comments.map(comment => `<div class="blog-comment"><strong>${esc(comment.name)}</strong>: ${esc(comment.text)}<small>${esc(comment.date || '')}</small></div>`).join('') : '<div class="account-empty">No comments yet.</div>'}
+      </div>
+      <div class="blog-comment-form">
+        <input type="text" id="comment-${esc(post.id)}" placeholder="Write a comment">
+        <button class="btn-primary" type="button" onclick="addBlogComment('${esc(post.id)}')">Post</button>
+      </div>
+    </div>
+  </article>`;
+}
 function rerenderBlogIfOpen() {
   if(document.getElementById('page-info')?.classList.contains('active') && document.getElementById('info-title')?.textContent === 'Blog') {
-    document.getElementById('info-content').innerHTML = renderBlogPosts();
+    const post = activeBlogPostId ? blogPosts.find(item => item.id === activeBlogPostId) : null;
+    document.getElementById('info-content').innerHTML = post ? renderBlogPostDetail(post) : renderBlogPosts();
     setTimeout(refreshScrollMotion, 0);
   }
 }
@@ -1017,6 +1413,71 @@ function renderAdminOrders() {
   if(recent) recent.innerHTML = adminOrders.slice(0,4).map(order => `<tr>
     <td>#${esc(order.id)}</td><td>${esc(order.customer)}</td><td>${esc(order.items)}</td><td>$${Number(order.total).toFixed(2)}</td><td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
   </tr>`).join('');
+  renderAdminReviews();
+}
+function updateCustomerOrderReviewStatus(review, status) {
+  const customerProfiles = readStorage('dotCustomerProfiles', {});
+  Object.values(customerProfiles).forEach(profile => {
+    if(!Array.isArray(profile.orders)) return;
+    const order = profile.orders.find(item => String(item.id) === String(review.orderId));
+    const reviews = Array.isArray(order?.reviews) ? order.reviews : (order?.review ? [order.review] : []);
+    const savedReview = reviews.find(item => String(item.id) === String(review.id));
+    if(savedReview) {
+      savedReview.status = status;
+      order.reviews = reviews;
+      if(order.review && String(order.review.id) === String(review.id)) order.review.status = status;
+    }
+  });
+  localStorage.setItem('dotCustomerProfiles', JSON.stringify(customerProfiles));
+  if(currentUser?.orders) {
+    const order = currentUser.orders.find(item => String(item.id) === String(review.orderId));
+    const reviews = Array.isArray(order?.reviews) ? order.reviews : (order?.review ? [order.review] : []);
+    const savedReview = reviews.find(item => String(item.id) === String(review.id));
+    if(savedReview) {
+      savedReview.status = status;
+      order.reviews = reviews;
+      if(order.review && String(order.review.id) === String(review.id)) order.review.status = status;
+      saveCurrentUser();
+    }
+  }
+}
+function setReviewApproval(reviewId, status) {
+  if(!canAdmin('orders')) { showToast('This admin account cannot approve reviews.'); return; }
+  const review = productReviews.find(item => String(item.id) === String(reviewId));
+  if(!review) return;
+  review.status = status;
+  updateCustomerOrderReviewStatus(review, status);
+  saveProductReviews();
+  renderAdminReviews();
+  renderGrids();
+  const activeProductId = document.getElementById('modal-product')?.dataset.productId;
+  if(activeProductId) {
+    const activeProduct = products.find(product => String(product.id) === String(activeProductId));
+    if(activeProduct) {
+      const ratingEl = document.getElementById('modal-product-rating');
+      const reviewsEl = document.getElementById('modal-product-reviews');
+      if(ratingEl) ratingEl.innerHTML = productReviewSummaryMarkup(activeProduct.id);
+      if(reviewsEl) reviewsEl.innerHTML = productReviewListMarkup(activeProduct.id);
+    }
+  }
+  showToast(status === 'approved' ? 'Review approved and published.' : 'Review rejected.');
+}
+function renderAdminReviews() {
+  const list = document.getElementById('admin-review-list');
+  if(!list) return;
+  const pending = pendingProductReviews();
+  list.innerHTML = pending.length ? pending.map(review => `
+    <div class="admin-review-row">
+      <div>
+        <strong>${esc(review.productName)}</strong>
+        <small>${esc(review.customer)} - Order #${esc(review.orderId)} - ${reviewStars(review.rating)}</small>
+        <p>${esc(review.comment)}</p>
+      </div>
+      <div class="admin-row-actions">
+        <button class="btn-primary" type="button" style="padding:7px 12px;font-size:0.75rem" onclick="setReviewApproval('${esc(review.id)}','approved')">Approve</button>
+        <button class="btn-outline-dark" type="button" style="padding:7px 12px;font-size:0.75rem" onclick="setReviewApproval('${esc(review.id)}','rejected')">Reject</button>
+      </div>
+    </div>`).join('') : '<div class="account-empty">No pending reviews.</div>';
 }
 function renderAdminBlogs() {
   const list = document.getElementById('admin-blog-list');
@@ -1232,7 +1693,16 @@ function openProductModal(id) {
   document.getElementById('modal-product-name').textContent = p.name;
   document.getElementById('modal-product-price').textContent = '$'+Number(p.price).toFixed(2)+' USD';
   document.getElementById('modal-product-desc').textContent = getShortDescription(p);
-  document.getElementById('modal-product-stock').textContent = Number(p.stock || 0)+' items in stock';
+  const fullDesc = document.getElementById('modal-product-full-desc');
+  if(fullDesc) fullDesc.textContent = p.desc || getShortDescription(p);
+  document.getElementById('modal-product-stock').textContent = Number(p.sold || 0)+' sold | '+Number(p.stock || 0)+' items in stock';
+  const ratingEl = document.getElementById('modal-product-rating');
+  if(ratingEl) ratingEl.innerHTML = productReviewSummaryMarkup(p.id);
+  const reviewsEl = document.getElementById('modal-product-reviews');
+  if(reviewsEl) {
+    reviewsEl.innerHTML = productReviewListMarkup(p.id);
+    reviewsEl.classList.add('collapsed');
+  }
   document.getElementById('modal-product').dataset.productId = id;
   document.getElementById('modal-qty').value = 1;
   openModal('modal-product');
@@ -1345,11 +1815,13 @@ function normalizedCustomerOrders() {
       id: order.id || order.number || 'Order '+(index + 1),
       items: order.items || order.summary || 'DotProject product',
       total: order.total || '',
-      status: order.status || 'To Pay',
+      status: order.status === 'Reviewed' ? 'To Review' : (order.status || 'To Pay'),
       date: order.date || '',
       invoiceId: order.invoiceId || '',
       source: order.source || 'Online',
-      payment: order.payment || ''
+      payment: order.payment || '',
+      productItems: orderProductItems(order),
+      reviews: Array.isArray(order.reviews) ? order.reviews : (order.review ? [order.review] : [])
     };
   });
 }
@@ -1368,22 +1840,49 @@ function submitOrderReview(orderId) {
   const safeId = String(orderId).replace(/[^a-z0-9_-]/gi, '-');
   const rating = document.getElementById('review-rating-'+safeId)?.value || '5';
   const note = document.getElementById('review-text-'+safeId)?.value.trim();
+  const productId = document.getElementById('review-product-'+safeId)?.value;
   if(!note) { showToast('Please write a short review.'); return; }
+  if(!productId) { showToast('Please choose a product to review.'); return; }
   const order = currentUser.orders.find(item => String(item.id) === String(orderId));
   if(!order) return;
-  order.review = {
+  const product = products.find(item => String(item.id) === String(productId));
+  const reviewId = 'REV-' + Date.now();
+  order.reviews = Array.isArray(order.reviews) ? order.reviews : (order.review ? [order.review] : []);
+  if(order.reviews.some(review => String(review.productId) === String(productId))) {
+    showToast('You already reviewed this product from this order.');
+    return;
+  }
+  const savedReview = {
+    id: reviewId,
+    productId,
+    productName: product?.name || 'DotProject product',
     rating,
     note,
+    status: 'pending',
     date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
   };
-  order.status = 'Reviewed';
+  order.reviews.push(savedReview);
+  order.review = order.reviews[0];
+  productReviews.unshift({
+    id: reviewId,
+    orderId,
+    productId,
+    productName: product?.name || 'DotProject product',
+    customer: getCustomerName(),
+    email: currentUser.email,
+    rating,
+    comment: note,
+    status: 'pending',
+    date: savedReview.date
+  });
+  saveProductReviews();
   persistCustomerProfile();
-  activeOrderFilter = 'Reviewed';
+  activeOrderFilter = 'To Review';
   showAccountTab('orders');
-  showToast('Review submitted. Thank you.');
+  showToast('Review submitted for admin approval.');
 }
 function renderMyOrders() {
-  const statuses = ['All', 'To Pay', 'To Ship', 'Shipped', 'To Review', 'Reviewed'];
+  const statuses = ['All', 'To Pay', 'To Ship', 'Shipped', 'To Review'];
   const orders = normalizedCustomerOrders();
   const statusCards = statuses.map(status => {
     const count = status === 'All' ? orders.length : orders.filter(order => order.status === status).length;
@@ -1393,21 +1892,29 @@ function renderMyOrders() {
   const rows = filteredOrders.map(order => {
     const detailId = 'order-detail-'+String(order.id).replace(/[^a-z0-9_-]/gi, '-');
     const reviewId = String(order.id).replace(/[^a-z0-9_-]/gi, '-');
-    const reviewBlock = order.review ? `
+    const orderProducts = order.productItems.length ? order.productItems : (orderProductItems(order).length ? orderProductItems(order) : visibleProducts().map(item => ({ id:item.id, name:item.name, qty:1 })));
+    const existingReviews = Array.isArray(order.reviews) ? order.reviews : [];
+    const reviewedIds = existingReviews.map(review => String(review.productId));
+    const reviewableProducts = orderProducts.filter(item => !reviewedIds.includes(String(item.id)));
+    const existingReviewMarkup = existingReviews.length ? existingReviews.map(review => `
         <div class="order-review-box">
           <strong>Your Review</strong><br>
-          Rating: ${esc(order.review.rating)} / 5<br>
-          ${esc(order.review.note)}<br>
-          <small>${esc(order.review.date || '')}</small>
-        </div>` : order.status === 'To Review' ? `
+          Product: ${esc(review.productName || '')}<br>
+          ${reviewStars(review.rating)}<br>
+          ${esc(review.note)}<br>
+          <small>${esc(review.status === 'approved' ? 'Approved' : 'Waiting for admin approval')} - ${esc(review.date || '')}</small>
+        </div>`).join('') : '';
+    const reviewFormMarkup = order.status === 'To Review' && reviewableProducts.length ? `
         <div class="order-review-box">
           <strong>Review this delivered order</strong>
           <div class="form-row" style="margin-top:0.75rem">
-            <div class="form-group"><label>Rating</label><select id="review-rating-${esc(reviewId)}"><option value="5">5 - Excellent</option><option value="4">4 - Good</option><option value="3">3 - Okay</option><option value="2">2 - Bad</option><option value="1">1 - Very bad</option></select></div>
+            <div class="form-group"><label>Product</label><select id="review-product-${esc(reviewId)}">${reviewableProducts.map(item => `<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('')}</select></div>
+            <div class="form-group"><label>Star Rating</label>${reviewStars(5, true, 'review-rating-'+reviewId)}</div>
             <div class="form-group"><label>Comment</label><input type="text" id="review-text-${esc(reviewId)}" placeholder="Write your review"></div>
           </div>
           <button class="btn-primary" type="button" style="padding:8px 14px" onclick="submitOrderReview('${esc(order.id)}')">Submit Review</button>
         </div>` : '';
+    const reviewBlock = existingReviewMarkup + reviewFormMarkup;
     return `
     <div class="order-list-row">
       <div>
@@ -1724,15 +2231,15 @@ function updateOrderStatus(id, status) {
   const customerProfiles = readStorage('dotCustomerProfiles', {});
   Object.values(customerProfiles).forEach(profile => {
     if(!Array.isArray(profile.orders)) return;
-    const customerOrder = profile.orders.find(item => item.id === id);
+    const customerOrder = profile.orders.find(item => String(item.id) === String(id));
     if(customerOrder) {
-      customerOrder.status = customerOrder.review && status === 'Delivered' ? 'Reviewed' : customerStatus;
+      customerOrder.status = customerStatus;
     }
   });
   localStorage.setItem('dotCustomerProfiles', JSON.stringify(customerProfiles));
   if(currentUser?.orders) {
-    const ownOrder = currentUser.orders.find(item => item.id === id);
-    if(ownOrder) ownOrder.status = ownOrder.review && status === 'Delivered' ? 'Reviewed' : customerStatus;
+    const ownOrder = currentUser.orders.find(item => String(item.id) === String(id));
+    if(ownOrder) ownOrder.status = customerStatus;
     saveCurrentUser();
   }
   saveAdminOrders();

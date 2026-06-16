@@ -170,11 +170,13 @@
       <div class="product-gallery">
         <div class="product-gallery-main" id="modal-product-img"></div>
         <div class="product-thumbs" id="modal-product-thumbs"></div>
+        <button class="btn-outline-dark product-review-toggle" type="button" onclick="toggleProductReviews()">Reviews</button>
+        <div id="modal-product-reviews" class="product-reviews-list collapsed"></div>
       </div>
       <div class="product-detail-info" style="padding:0">
         <div class="det-category" id="modal-product-cat"></div>
         <h1 style="font-size:1.8rem" id="modal-product-name"></h1>
-        <div class="stars">★★★★★ <span style="color:var(--text-muted);font-size:0.85rem">(24 reviews)</span></div>
+        <div class="stars" id="modal-product-rating"></div>
         <div class="product-detail-price" id="modal-product-price"></div>
         <p class="det-desc" id="modal-product-desc"></p>
         <div class="det-stock" id="modal-product-stock"></div>
@@ -187,10 +189,14 @@
           <button class="btn-primary" onclick="addToCartFromModal()">Add to Cart</button>
           <button class="btn-outline-dark" onclick="addToCartFromModal();goToCheckout();closeModal('modal-product')">Buy Now</button>
         </div>
-        <div class="det-specs">
+      </div>
+      <div class="det-specs product-full-details">
+        <h4>Product Details</h4>
+        <p id="modal-product-full-desc"></p>
+        <div class="det-spec-grid">
           <div class="det-spec-row"><span>Material</span><span>PLA+ / PETG</span></div>
-          <div class="det-spec-row"><span>Print time</span><span>2–4 hours</span></div>
-          <div class="det-spec-row"><span>Delivery</span><span>3–7 business days</span></div>
+          <div class="det-spec-row"><span>Print time</span><span>2-4 hours</span></div>
+          <div class="det-spec-row"><span>Delivery</span><span>3-7 business days</span></div>
           <div class="det-spec-row"><span>Colors available</span><span>12 options</span></div>
         </div>
       </div>
@@ -757,6 +763,10 @@
         </div>
         <div class="admin-toolbar" style="margin-top:0">
           <input type="text" id="admin-order-search" placeholder="Search order ID..." oninput="renderAdminOrders()">
+        </div>
+        <div class="admin-access-panel">
+          <h3 style="font-size:1rem;font-weight:800;margin-bottom:0.75rem">Pending Reviews</h3>
+          <div id="admin-review-list" class="admin-review-list"></div>
         </div>
         <div style="background:white;border-radius:var(--radius-lg);padding:1.5rem">
           <table class="data-table">

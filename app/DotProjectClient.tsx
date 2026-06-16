@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 declare global {
   interface Window {
     __dotProjectScriptLoaded?: boolean;
+    __dotSupabase?: typeof supabase;
     hydrateProducts?: () => void;
+    syncSupabaseData?: () => void;
     renderGrids?: () => void;
     updateAuthUI?: () => void;
     updateCartUI?: () => void;
@@ -31,9 +34,11 @@ export default function DotProjectClient() {
 
   useEffect(() => {
     if(!html) return;
+    window.__dotSupabase = supabase;
 
     if(window.__dotProjectScriptLoaded) {
       window.hydrateProducts?.();
+      window.syncSupabaseData?.();
       window.renderGrids?.();
       window.updateAuthUI?.();
       window.updateCartUI?.();
@@ -45,6 +50,7 @@ export default function DotProjectClient() {
     script.async = false;
     script.onload = () => {
       window.__dotProjectScriptLoaded = true;
+      window.syncSupabaseData?.();
     };
     document.body.appendChild(script);
   }, [html]);

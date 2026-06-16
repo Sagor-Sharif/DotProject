@@ -1,17 +1,25 @@
 create table if not exists products (
   id uuid primary key default gen_random_uuid(),
+  local_id text unique,
   name text not null,
   category text not null,
   description text not null,
   price numeric(10,2) not null check (price >= 0),
   stock integer not null default 0 check (stock >= 0),
+  sold integer not null default 0 check (sold >= 0),
   status text not null default 'Active',
   photo text,
+  photos text[] not null default '{}',
   emoji text default '3D',
   is_new boolean not null default false,
   is_top boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table products add column if not exists local_id text;
+alter table products add column if not exists sold integer not null default 0 check (sold >= 0);
+alter table products add column if not exists photos text[] not null default '{}';
+create unique index if not exists products_local_id_unique on products(local_id);
 
 create table if not exists customer_profiles (
   id uuid primary key default gen_random_uuid(),
@@ -21,8 +29,11 @@ create table if not exists customer_profiles (
   phone text,
   shipping_address text,
   photo text,
+  metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table customer_profiles add column if not exists metadata jsonb not null default '{}'::jsonb;
 
 create table if not exists admin_access (
   email text primary key,
@@ -62,6 +73,7 @@ create table if not exists invoices (
 
 create table if not exists blog_posts (
   id uuid primary key default gen_random_uuid(),
+  local_id text unique,
   title text not null,
   description text not null,
   photo text,
@@ -69,6 +81,9 @@ create table if not exists blog_posts (
   author_email text,
   created_at timestamptz not null default now()
 );
+
+alter table blog_posts add column if not exists local_id text;
+create unique index if not exists blog_posts_local_id_unique on blog_posts(local_id);
 
 create table if not exists blog_likes (
   id uuid primary key default gen_random_uuid(),
@@ -84,6 +99,19 @@ create table if not exists blog_comments (
   user_email text,
   name text not null default 'Guest',
   comment text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists product_reviews (
+  id text primary key,
+  order_id text,
+  product_local_id text,
+  product_name text not null,
+  customer_name text not null,
+  customer_email text,
+  rating integer not null default 5 check (rating between 1 and 5),
+  comment text not null,
+  status text not null default 'pending',
   created_at timestamptz not null default now()
 );
 
