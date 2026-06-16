@@ -1371,6 +1371,18 @@ function addBlogComment(id) {
   input.value = '';
   rerenderBlogIfOpen();
 }
+function labelDataTables(root=document) {
+  root.querySelectorAll('.data-table').forEach(table => {
+    const labels = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(row => {
+      Array.from(row.children).forEach((cell, index) => {
+        if(cell.tagName === 'TD' && !cell.hasAttribute('colspan')) {
+          cell.setAttribute('data-label', labels[index] || '');
+        }
+      });
+    });
+  });
+}
 function renderAdminTable() {
   const tb = document.getElementById('admin-product-table');
   if(document.getElementById('admin-product-count')) document.getElementById('admin-product-count').textContent = products.length;
@@ -1389,6 +1401,7 @@ function renderAdminTable() {
   renderAdminDashboard();
   renderAdminOrders();
   applyAdminPermissions();
+  labelDataTables();
 }
 function statusClass(status) {
   return ['Active','Delivered','Shipped','In Process'].includes(status) ? 'status-active' : 'status-low';
@@ -1409,6 +1422,7 @@ function renderStockTable() {
       <td><div class="admin-row-actions"><input class="admin-inline-input" type="number" min="0" id="stock-${p.id}" value="${stock}"><button class="btn-outline-dark ${canAdmin('stock') ? '' : 'admin-denied'}" style="padding:6px 10px;font-size:0.75rem" onclick="updateProductStock(${p.id})">Save</button></div></td>
     </tr>`;
   }).join('');
+  labelDataTables();
 }
 function renderAdminOrders() {
   const table = document.getElementById('admin-order-table');
@@ -1435,6 +1449,7 @@ function renderAdminOrders() {
     <td>#${esc(order.id)}</td><td>${esc(order.customer)}</td><td>${esc(order.items)}</td><td>$${Number(order.total).toFixed(2)}</td><td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
   </tr>`).join('');
   renderAdminReviews();
+  labelDataTables();
 }
 function updateCustomerOrderReviewStatus(review, status) {
   const customerProfiles = readStorage('dotCustomerProfiles', {});
