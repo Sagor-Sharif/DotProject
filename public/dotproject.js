@@ -897,6 +897,17 @@ async function syncBlogPostsToSupabase(){
     if(comments.length) await db.from('blog_comments').insert(comments.map(comment => ({ post_id: saved.id, user_email: '', name: comment.name || 'Guest', comment: comment.text || '' })));
   }
 }
+async function deleteBlogPostFromSupabase(post) {
+  if(!hasDotDb() || !post) return;
+  const db = dotDb();
+  if(post.dbId) {
+    const { error } = await db.from('blog_posts').delete().eq('id', post.dbId);
+    if(error) throw error;
+    return;
+  }
+  const { error } = await db.from('blog_posts').delete().eq('local_id', String(post.id));
+  if(error) throw error;
+}
 function runSupabaseSync(task, successMessage='') {
   if(!hasDotDb()) return;
   task().then(() => {
@@ -1496,7 +1507,7 @@ function renderAdminBlogs() {
       </div>
       <div class="admin-row-actions">
         <button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="editBlogPost('${esc(post.id)}')">Edit</button>
-        <button class="btn-outline-dark" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="deleteBlogPost('${esc(post.id)}')">Delete</button>
+        <button class="btn-outline-dark blog-admin-delete" type="button" style="padding:6px 10px;font-size:0.75rem" onclick="deleteBlogPost('${esc(post.id)}')">Delete</button>
       </div>
     </div>`).join('') : '<div class="account-empty">No blog posts yet.</div>';
 }
@@ -1563,8 +1574,12 @@ function editBlogPost(id) {
 }
 function deleteBlogPost(id) {
   if(!isSuperAdmin()) { showToast('Only super admin can delete blog posts.'); return; }
+  const post = blogPosts.find(item => String(item.id) === String(id));
+  if(!post) return;
+  if(!confirm('Delete this blog post permanently?')) return;
   blogPosts = blogPosts.filter(post => post.id !== id);
   saveBlogPosts();
+  runSupabaseSync(() => deleteBlogPostFromSupabase(post));
   renderAdminBlogs();
   rerenderBlogIfOpen();
   showToast('Blog post deleted.');
