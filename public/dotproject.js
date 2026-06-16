@@ -878,6 +878,16 @@ async function syncInvoicesToSupabase(){
   if(hasDotDb() && rows.length) await dotDb().from('invoices').upsert(rows, { onConflict: 'id' });
 }
 async function syncCurrentUserToSupabase(){ if(hasDotDb() && currentUser?.email) await dotDb().from('customer_profiles').upsert(customerProfileToDbRow(currentUser), { onConflict: 'email' }); }
+async function loadCustomerProfileFromSupabase(email) {
+  if(!hasDotDb() || !email) return null;
+  const { data, error } = await dotDb()
+    .from('customer_profiles')
+    .select('*')
+    .eq('email', normalizeEmail(email))
+    .maybeSingle();
+  if(error) throw error;
+  return data ? customerProfileFromDbRow(data) : null;
+}
 async function syncProductReviewsToSupabase(){
   if(hasDotDb() && productReviews.length) await dotDb().from('product_reviews').upsert(productReviews.map(productReviewToDbRow), { onConflict: 'id' });
 }
@@ -1999,6 +2009,11 @@ function showAccountTab(tab, clickedButton) {
 function readCustomerPhoto(input) {
   const file = input.files && input.files[0];
   if(!file) return;
+  if(file.size > 750 * 1024) {
+    showToast('Profile image is too large. Please use an image under 750KB.');
+    input.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = () => {
     document.getElementById('profile-photo-value').value = reader.result;
@@ -2033,18 +2048,29 @@ function handleLogout() {
   }
   showToast('You have been logged out.');
 }
-function handleSignin() {
+async function handleSignin() {
   const email = normalizeEmail(document.getElementById('signin-email').value);
   const password = document.getElementById('signin-password')?.value || '';
   if(!email) { showToast('Please enter your email.'); return; }
   if(password.length < 6) { showToast('Please enter your password.'); return; }
   const savedProfiles = readStorage('dotCustomerProfiles', {});
-  const savedProfile = savedProfiles[email];
+  let savedProfile = savedProfiles[email];
+  try {
+    const remoteProfile = await loadCustomerProfileFromSupabase(email);
+    if(remoteProfile) {
+      savedProfile = { ...savedProfile, ...remoteProfile };
+      savedProfiles[email] = savedProfile;
+      localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
+    }
+  } catch (error) {
+    console.error('Supabase profile load failed:', error);
+    showToast('Could not load Supabase profile. Using this device data.');
+  }
   if(savedProfile?.password && savedProfile.password !== password) {
     showToast('Password does not match this account.');
     return;
   }
-  currentUser = ensureCustomerProfile({ email });
+  currentUser = ensureCustomerProfile({ ...(savedProfile || {}), email });
   if(!currentUser.password) currentUser.password = password;
   persistCustomerProfile();
   closeModal('modal-signin');
