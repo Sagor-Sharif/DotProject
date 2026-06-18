@@ -576,18 +576,6 @@ function selectPay(el) {
   updateCheckoutSteps('payment');
 }
 
-// ================== AUTH ==================
-function handleSignin() {
-  closeModal('modal-signin');
-  showToast('👋 Welcome back!');
-  document.querySelector('.btn-nav-signin').textContent = 'My Account';
-}
-function handleSignup() {
-  closeModal('modal-signup');
-  showToast('🎉 Account created! Welcome to DotProject.');
-  document.querySelector('.btn-nav-signin').textContent = 'My Account';
-}
-
 // ================== ADMIN ==================
 function switchAdmin(section, el) {
   const permissionMap = { dashboard:'dashboard', 'add-product':'addProduct', products:'products', stock:'stock', orders:'orders', blogs:'dashboard' };
@@ -649,6 +637,7 @@ function getAdminPermissions(email=currentUser?.email){
 function canAdmin(permission){ return isSuperAdmin() || getAdminPermissions().includes(permission); }
 function dotDb(){ return window.__dotSupabase || null; }
 function hasDotDb(){ return Boolean(dotDb()); }
+function dotAuth(){ return dotDb()?.auth || null; }
 function requireDotDb() {
   const db = dotDb();
   if(!db) {
@@ -673,6 +662,63 @@ async function uploadToSupabaseStorage(file, bucket, folder) {
   if(error) throw error;
   const { data } = db.storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl || '';
+}
+function authRedirectUrl() {
+  return window.location.origin + window.location.pathname;
+}
+function authUserProfile(user, fallback = {}) {
+  const metadata = user?.user_metadata || {};
+  return ensureCustomerProfile({
+    ...fallback,
+    authUserId: user?.id || fallback.authUserId || '',
+    email: normalizeEmail(user?.email || fallback.email || ''),
+    firstName: metadata.firstName || fallback.firstName || '',
+    lastName: metadata.lastName || fallback.lastName || '',
+    phone: metadata.phone || fallback.phone || ''
+  });
+}
+async function applySupabaseAuthUser(user, options = {}) {
+  if(!user?.email) return;
+  let remoteProfile = null;
+  try {
+    remoteProfile = await loadCustomerProfileFromSupabase(user.email);
+  } catch (error) {
+    console.error('Supabase profile load failed:', error);
+  }
+  currentUser = authUserProfile(user, remoteProfile || {});
+  persistCustomerProfile();
+  updateAuthUI();
+  if(options.openAccount) openAccountModal();
+  if(options.showAdmin && isAdminEmail(currentUser.email)) showPage('admin');
+}
+async function initSupabaseAuth() {
+  const auth = dotAuth();
+  if(!auth) {
+    updateAuthUI();
+    return;
+  }
+  const { data, error } = await auth.getSession();
+  if(error) {
+    console.error('Supabase auth session failed:', error);
+  } else if(data?.session?.user) {
+    await applySupabaseAuthUser(data.session.user);
+  } else {
+    updateAuthUI();
+  }
+  auth.onAuthStateChange((event, session) => {
+    if(event === 'SIGNED_OUT') {
+      currentUser = null;
+      updateAuthUI();
+      if(document.getElementById('page-admin')?.classList.contains('active')) showPage('home');
+      return;
+    }
+    if(event === 'PASSWORD_RECOVERY') {
+      if(session?.user) applySupabaseAuthUser(session.user);
+      openResetPassword(true);
+      return;
+    }
+    if(session?.user) applySupabaseAuthUser(session.user);
+  });
 }
 function formatDbDate(value, options={ month:'short', day:'2-digit', year:'numeric' }) {
   if(!value) return '';
@@ -805,19 +851,23 @@ function blogFromDbRow(row) {
   };
 }
 function customerProfileToDbRow(profile) {
+  const metadata = { ...profile };
+  delete metadata.password;
   return {
+    auth_user_id: profile.authUserId || null,
     email: normalizeEmail(profile.email),
     first_name: profile.firstName || '',
     last_name: profile.lastName || '',
     phone: profile.phone || '',
     shipping_address: profile.address || profile.shippingAddress || '',
     photo: profile.photo || '',
-    metadata: profile
+    metadata
   };
 }
 function customerProfileFromDbRow(row) {
   return {
     ...(row.metadata || {}),
+    authUserId: row.auth_user_id || row.metadata?.authUserId || '',
     email: row.email,
     firstName: row.first_name || row.metadata?.firstName || '',
     lastName: row.last_name || row.metadata?.lastName || '',
@@ -982,6 +1032,7 @@ async function syncSupabaseData() {
   }
 }
 window.syncSupabaseData = syncSupabaseData;
+window.initSupabaseAuth = initSupabaseAuth;
 function saveProducts(){ runSupabaseSync(syncProductsToSupabase); }
 function saveAdmins(){ runSupabaseSync(syncAdminsToSupabase); }
 function saveAdminPermissions(){ runSupabaseSync(syncAdminsToSupabase); }
@@ -2029,44 +2080,37 @@ function saveShippingAddress() {
   persistCustomerProfile();
   showToast('Shipping address saved.');
 }
-function handleLogout() {
+async function handleLogout() {
+  const auth = dotAuth();
+  if(auth) {
+    const { error } = await auth.signOut();
+    if(error) {
+      console.error('Supabase logout failed:', error);
+      showToast('Could not log out. Please try again.');
+      return;
+    }
+  }
   currentUser = null;
   closeModal('modal-account');
   updateAuthUI();
-  if(document.getElementById('page-admin')?.classList.contains('active')) {
-    showPage('home');
-  }
+  if(document.getElementById('page-admin')?.classList.contains('active')) showPage('home');
   showToast('You have been logged out.');
 }
 async function handleSignin() {
+  const auth = dotAuth();
+  if(!auth) { showToast('Connect Supabase before signing in.'); return; }
   const email = normalizeEmail(document.getElementById('signin-email').value);
   const password = document.getElementById('signin-password')?.value || '';
   if(!email) { showToast('Please enter your email.'); return; }
   if(password.length < 6) { showToast('Please enter your password.'); return; }
-  let savedProfile = null;
-  try {
-    const remoteProfile = await loadCustomerProfileFromSupabase(email);
-    if(remoteProfile) {
-      savedProfile = remoteProfile;
-    }
-  } catch (error) {
-    console.error('Supabase profile load failed:', error);
-    showToast('Could not load Supabase profile. Check database connection.');
+  const { data, error } = await auth.signInWithPassword({ email, password });
+  if(error) {
+    console.error('Supabase sign in failed:', error);
+    showToast(error.message || 'Could not sign in.');
     return;
   }
-  if(savedProfile?.password && savedProfile.password !== password) {
-    showToast('Password does not match this account.');
-    return;
-  }
-  if(!savedProfile) {
-    showToast('No database profile found for this email. Please sign up first.');
-    return;
-  }
-  currentUser = ensureCustomerProfile({ ...(savedProfile || {}), email });
-  if(!currentUser.password) currentUser.password = password;
-  persistCustomerProfile();
+  await applySupabaseAuthUser(data.user, { showAdmin: true });
   closeModal('modal-signin');
-  updateAuthUI();
   if(isAdminEmail(email)) {
     showToast('Admin access approved.');
     showPage('admin');
@@ -2075,60 +2119,105 @@ async function handleSignin() {
     openAccountModal();
   }
 }
-function handleSignup() {
+async function handleSignup() {
+  const auth = dotAuth();
+  if(!auth) { showToast('Connect Supabase before creating accounts.'); return; }
   const email = normalizeEmail(document.getElementById('signup-email').value);
   const password = document.getElementById('signup-password').value;
   const phone = document.getElementById('signup-phone')?.value.trim() || '';
   if(!email || password.length < 8) { showToast('Enter email and an 8+ character password.'); return; }
   if(!phone) { showToast('Please enter your phone number.'); return; }
   if(!document.getElementById('terms')?.checked) { showToast('Please agree to the terms first.'); return; }
-  currentUser = ensureCustomerProfile({
+  const profile = ensureCustomerProfile({
     email,
     firstName: document.getElementById('signup-first-name').value.trim(),
     lastName: document.getElementById('signup-last-name').value.trim(),
-    phone,
-    password
+    phone
   });
-  persistCustomerProfile();
+  const { data, error } = await auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: authRedirectUrl(),
+      data: {
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+        phone: profile.phone
+      }
+    }
+  });
+  if(error) {
+    console.error('Supabase sign up failed:', error);
+    showToast(error.message || 'Could not create account.');
+    return;
+  }
+  currentUser = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
+  await syncCurrentUserToSupabase();
   closeModal('modal-signup');
   updateAuthUI();
-  showToast('Account created! Welcome to DotProject.');
-  openAccountModal();
+  if(data.session) {
+    showToast('Account created! Welcome to DotProject.');
+    openAccountModal();
+  } else {
+    currentUser = null;
+    updateAuthUI();
+    showToast('Account created. Check your email to confirm sign in.');
+  }
 }
-function openResetPassword() {
+async function sendMagicLink() {
+  const auth = dotAuth();
+  if(!auth) { showToast('Connect Supabase before sending magic links.'); return; }
+  const email = normalizeEmail(document.getElementById('signin-email').value);
+  if(!email) { showToast('Enter your email first.'); return; }
+  const { error } = await auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: authRedirectUrl() }
+  });
+  if(error) {
+    console.error('Supabase magic link failed:', error);
+    showToast(error.message || 'Could not send magic link.');
+    return;
+  }
+  showToast('Magic link sent. Check your email.');
+}
+function openResetPassword(isRecovery = false) {
   closeModal('modal-signin');
-  document.getElementById('reset-step-email').classList.add('active');
-  document.getElementById('reset-step-code').classList.remove('active');
+  document.getElementById('reset-step-email').classList.toggle('active', !isRecovery);
+  document.getElementById('reset-step-code').classList.toggle('active', Boolean(isRecovery));
   document.getElementById('reset-email').value = '';
   document.getElementById('reset-code-input').value = '';
   document.getElementById('reset-new-password').value = '';
   openModal('modal-reset');
 }
-function sendResetCode() {
+async function sendResetCode() {
+  const auth = dotAuth();
+  if(!auth) { showToast('Connect Supabase before resetting passwords.'); return; }
   const email = normalizeEmail(document.getElementById('reset-email').value);
   if(!isGmail(email)) { showToast('Please enter a valid Gmail address.'); return; }
   resetEmail = email;
-  resetCode = String(Math.floor(100000 + Math.random() * 900000));
-  document.getElementById('reset-demo-code').textContent = resetCode;
-  document.getElementById('reset-step-email').classList.remove('active');
-  document.getElementById('reset-step-code').classList.add('active');
-  showToast('Reset code sent to '+email+'.');
-}
-function confirmResetCode() {
-  const code = document.getElementById('reset-code-input').value.trim();
-  const password = document.getElementById('reset-new-password').value;
-  if(code !== resetCode) { showToast('Reset code is not correct.'); return; }
-  if(password.length < 6) { showToast('New password must be at least 6 characters.'); return; }
-  if(currentUser && normalizeEmail(currentUser.email) === normalizeEmail(resetEmail)) {
-    currentUser.password = password;
-    saveCurrentUser();
-  } else {
-    currentUser = ensureCustomerProfile({ email: resetEmail, password });
-    saveCurrentUser();
-    currentUser = null;
+  const { error } = await auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl() });
+  if(error) {
+    console.error('Supabase password reset failed:', error);
+    showToast(error.message || 'Could not send reset email.');
+    return;
   }
   closeModal('modal-reset');
-  showToast('Password updated for '+resetEmail+'.');
+  showToast('Password reset email sent to '+email+'.');
+}
+async function confirmResetCode() {
+  const auth = dotAuth();
+  if(!auth) { showToast('Connect Supabase before updating passwords.'); return; }
+  const password = document.getElementById('reset-new-password').value;
+  if(password.length < 8) { showToast('New password must be at least 8 characters.'); return; }
+  const { data: userData, error } = await auth.updateUser({ password });
+  if(error) {
+    console.error('Supabase password update failed:', error);
+    showToast(error.message || 'Could not update password.');
+    return;
+  }
+  if(userData?.user) await applySupabaseAuthUser(userData.user);
+  closeModal('modal-reset');
+  showToast('Password updated.');
 }
 function renderAdminAccess() {
   const panel = document.getElementById('super-admin-panel');
@@ -2398,6 +2487,7 @@ function initKeyboardSubmit() {
 // ================== INIT ==================
 hydrateProducts();
 renderGrids();
+initSupabaseAuth();
 initBrowserHistory();
 initKeyboardSubmit();
 initScrollMotion();

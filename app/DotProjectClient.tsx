@@ -8,6 +8,7 @@ declare global {
     __dotProjectScriptLoaded?: boolean;
     __dotSupabase?: typeof supabase;
     hydrateProducts?: () => void;
+    initSupabaseAuth?: () => void;
     syncSupabaseData?: () => void;
     renderGrids?: () => void;
     updateAuthUI?: () => void;
@@ -38,6 +39,7 @@ export default function DotProjectClient() {
 
     if(window.__dotProjectScriptLoaded) {
       window.hydrateProducts?.();
+      window.initSupabaseAuth?.();
       window.syncSupabaseData?.();
       window.renderGrids?.();
       window.updateAuthUI?.();
@@ -50,6 +52,7 @@ export default function DotProjectClient() {
     script.async = false;
     script.onload = () => {
       window.__dotProjectScriptLoaded = true;
+      window.initSupabaseAuth?.();
       window.syncSupabaseData?.();
     };
     document.body.appendChild(script);

@@ -68,6 +68,7 @@
     </div>
     <button class="btn-primary btn-full" onclick="handleSignin()">Sign In</button>
     <div class="form-divider"><span>or</span></div>
+    <button class="btn-outline-dark btn-full" style="margin-bottom:1rem" onclick="sendMagicLink()">Email magic link</button>
     <button class="btn-outline-dark btn-full" style="margin-bottom:1rem" onclick="openModal('modal-signup');closeModal('modal-signin')">Create an account</button>
     <p style="text-align:center;font-size:0.85rem;color:var(--text-muted)">
       Forgot password? <a class="form-link" onclick="openResetPassword()">Reset here</a>
@@ -119,25 +120,22 @@
   <div class="modal-box">
     <button class="modal-close" onclick="closeModal('modal-reset')">X</button>
     <h2>Reset password</h2>
-    <p class="subtitle">Enter your Gmail address and confirm the code sent to it.</p>
+    <p class="subtitle">Enter your Gmail address and use the Supabase email link to set a new password.</p>
     <div class="reset-step active" id="reset-step-email">
       <div class="form-group">
         <label>Gmail address</label>
         <input type="email" placeholder="yourname@gmail.com" id="reset-email">
       </div>
-      <button class="btn-primary btn-full" onclick="sendResetCode()">Send Code</button>
+      <button class="btn-primary btn-full" onclick="sendResetCode()">Send Reset Email</button>
     </div>
     <div class="reset-step" id="reset-step-code">
-      <div class="form-group">
-        <label>Reset code</label>
-        <input type="text" placeholder="6 digit code" id="reset-code-input">
-      </div>
+      <input type="hidden" id="reset-code-input">
       <div class="form-group">
         <label>New password</label>
         <input type="password" placeholder="New password" id="reset-new-password">
       </div>
       <button class="btn-primary btn-full" onclick="confirmResetCode()">Update Password</button>
-      <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:1rem">Demo code: <strong id="reset-demo-code"></strong></p>
+      <p style="text-align:center;font-size:0.8rem;color:var(--text-muted);margin-top:1rem">Open this after clicking the recovery link in your email.</p>
     </div>
   </div>
 </div>

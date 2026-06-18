@@ -34,6 +34,7 @@ create table if not exists customer_profiles (
 );
 
 alter table customer_profiles add column if not exists metadata jsonb not null default '{}'::jsonb;
+alter table customer_profiles add column if not exists auth_user_id uuid references auth.users(id) on delete set null;
 
 create table if not exists admin_access (
   email text primary key,
