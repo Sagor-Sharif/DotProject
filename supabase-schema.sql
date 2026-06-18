@@ -124,3 +124,38 @@ values (
 on conflict (email) do update set
   permissions = excluded.permissions,
   is_super_admin = true;
+
+insert into storage.buckets (id, name, public)
+values
+  ('product-images', 'product-images', true),
+  ('profile-images', 'profile-images', true),
+  ('blog-images', 'blog-images', true)
+on conflict (id) do update set public = true;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Public read DotProject images') then
+    create policy "Public read DotProject images"
+      on storage.objects for select
+      using (bucket_id in ('product-images', 'profile-images', 'blog-images'));
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Public upload DotProject images') then
+    create policy "Public upload DotProject images"
+      on storage.objects for insert
+      with check (bucket_id in ('product-images', 'profile-images', 'blog-images'));
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Public update DotProject images') then
+    create policy "Public update DotProject images"
+      on storage.objects for update
+      using (bucket_id in ('product-images', 'profile-images', 'blog-images'))
+      with check (bucket_id in ('product-images', 'profile-images', 'blog-images'));
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Public delete DotProject images') then
+    create policy "Public delete DotProject images"
+      on storage.objects for delete
+      using (bucket_id in ('product-images', 'profile-images', 'blog-images'));
+  end if;
+end $$;

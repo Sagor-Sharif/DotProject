@@ -1,55 +1,23 @@
 // ================== DATA ==================
 function readStorage(key, fallback) {
-  try {
-    const value = localStorage.getItem(key);
-    return value ? JSON.parse(value) : fallback;
-  } catch (error) {
-    localStorage.removeItem(key);
-    return fallback;
-  }
+  return fallback;
 }
-const products = [
-  { id:1, name:'Auto Cat Feeder', cat:'Smart Devices', price:49, emoji:'🐱', desc:'Fully 3D-printed body with automatic timer-based feeding mechanism. Perfect for busy cat owners.', isNew:true, isTop:true },
-  { id:2, name:'Custom Keyring', cat:'Keychains & Rings', price:8, emoji:'🔑', desc:'Personalized keychain with your name, initial, or custom logo. Available in 12 colors.', isNew:true, isTop:true },
-  { id:3, name:'Fish Auto Feeder', cat:'Smart Devices', price:35, emoji:'🐠', desc:'Automatic aquarium fish feeder with programmable schedule. Compact and watertight design.', isNew:true, isTop:false },
-  { id:4, name:'Mini Floating Shelf', cat:'Home Decor', price:9, emoji:'🏠', desc:'Sleek wall-mounted floating shelf. Minimal design, maximum impact. Easy to install.', isNew:false, isTop:true },
-  { id:5, name:'Desk Organizer', cat:'Home Decor', price:14, emoji:'📐', desc:'Modular desk organizer with slots for pens, cards, phone, and more. Clean geometric form.', isNew:true, isTop:false },
-  { id:6, name:'Phone Stand', cat:'Home Decor', price:12, emoji:'📱', desc:'Adjustable 3D-printed phone stand compatible with all device sizes. Foldable design.', isNew:false, isTop:true },
-  { id:7, name:'Plant Pot Holder', cat:'Home Decor', price:11, emoji:'🌿', desc:'Geometric succulent pot in a modern honeycomb shape. Indoor and outdoor use.', isNew:true, isTop:false },
-  { id:8, name:'Miniature Building', cat:'Home Decor', price:22, emoji:'🏛️', desc:'Highly detailed architectural miniature. Great for gifts and desk decoration.', isNew:false, isTop:true },
-];
+const products = [];
 
 let cart = [];
 const SUPER_ADMIN_EMAIL = 'sagorsharif27@gmail.com';
 const BKASH_PERSONAL_NUMBER = '0175047924';
 const NAGAD_PERSONAL_NUMBER = '0175047924';
-let currentUser = readStorage('dotCurrentUser', null);
-let adminEmails = readStorage('dotAdminEmails', null) || [SUPER_ADMIN_EMAIL];
+let currentUser = null;
+let adminEmails = [];
 const ALL_ADMIN_PERMISSIONS = ['dashboard','addProduct','products','editProduct','stock','orders','orderStatus'];
-let adminPermissions = readStorage('dotAdminPermissions', null) || {};
-let adminOrders = readStorage('dotAdminOrders', null) || [
-  { id:'DP-0064', customer:'Rafiq Ahmed', items:'Auto Cat Feeder x1', total:49, date:'Jun 08', status:'In Process' },
-  { id:'DP-0063', customer:'Nusrat Jahan', items:'Custom Keyring x3', total:24, date:'Jun 07', status:'Shipped' },
-  { id:'DP-0062', customer:'Tanvir Islam', items:'Fish Auto Feeder x1', total:35, date:'Jun 06', status:'Pending' },
-  { id:'DP-0061', customer:'Sadia Hossain', items:'Mini Shelf x2', total:18, date:'Jun 05', status:'Delivered' }
-];
-let invoices = readStorage('dotInvoices', null) || {};
-let blogPosts = readStorage('dotBlogPosts', null) || [
-  {
-    id: 'BLOG-001',
-    title: 'How 3D Printing Helps Custom Product Ideas',
-    description: 'From keyrings to smart feeders, 3D printing lets customers test useful ideas quickly with small-batch production.',
-    photo: '',
-    video: '',
-    date: 'Jun 11, 2026',
-    likes: 0,
-    likedBy: [],
-    comments: []
-  }
-];
-let productReviews = readStorage('dotProductReviews', null) || [];
+let adminPermissions = {};
+let adminOrders = [];
+let invoices = {};
+let blogPosts = [];
+let productReviews = [];
 let activeBlogPostId = null;
-let lastInvoiceId = localStorage.getItem('dotLastInvoiceId') || '';
+let lastInvoiceId = '';
 let resetCode = '';
 let resetEmail = '';
 let activePageId = 'home';
@@ -666,14 +634,11 @@ function normalizeEmail(email){ return (email || '').trim().toLowerCase(); }
 function isGmail(email){ return /^[^\s@]+@gmail\.com$/i.test(email || ''); }
 function isSuperAdmin(){ return currentUser && normalizeEmail(currentUser.email) === SUPER_ADMIN_EMAIL; }
 function migrateAdminAccess(){
-  adminEmails = Array.from(new Set([SUPER_ADMIN_EMAIL, ...adminEmails.map(normalizeEmail).filter(Boolean)]));
-  adminPermissions[SUPER_ADMIN_EMAIL] = ALL_ADMIN_PERMISSIONS;
+  adminEmails = Array.from(new Set(adminEmails.map(normalizeEmail).filter(Boolean)));
   adminEmails.forEach(email => {
     const normalized = normalizeEmail(email);
     if(!adminPermissions[normalized]) adminPermissions[normalized] = normalized === SUPER_ADMIN_EMAIL ? ALL_ADMIN_PERMISSIONS : ['dashboard','products','orders'];
   });
-  saveAdmins();
-  saveAdminPermissions();
 }
 function isAdminEmail(email){ return adminEmails.map(normalizeEmail).includes(normalizeEmail(email)); }
 function getAdminPermissions(email=currentUser?.email){
@@ -684,6 +649,31 @@ function getAdminPermissions(email=currentUser?.email){
 function canAdmin(permission){ return isSuperAdmin() || getAdminPermissions().includes(permission); }
 function dotDb(){ return window.__dotSupabase || null; }
 function hasDotDb(){ return Boolean(dotDb()); }
+function requireDotDb() {
+  const db = dotDb();
+  if(!db) {
+    showToast('Connect Supabase before saving data.');
+    throw new Error('Supabase client is not configured.');
+  }
+  return db;
+}
+function safeFileName(name) {
+  return String(name || 'upload').toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'upload';
+}
+async function uploadToSupabaseStorage(file, bucket, folder) {
+  if(!file) return '';
+  const db = requireDotDb();
+  const extension = safeFileName(file.name).split('.').pop() || 'bin';
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
+  const { error } = await db.storage.from(bucket).upload(path, file, {
+    cacheControl: '3600',
+    contentType: file.type || 'application/octet-stream',
+    upsert: false
+  });
+  if(error) throw error;
+  const { data } = db.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || '';
+}
 function formatDbDate(value, options={ month:'short', day:'2-digit', year:'numeric' }) {
   if(!value) return '';
   return new Date(value).toLocaleDateString('en-US', options);
@@ -943,9 +933,8 @@ async function syncSupabaseData() {
     [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult].forEach(result => { if(result.error) throw result.error; });
     if(productResult.data?.length) {
       products.splice(0, products.length, ...productResult.data.map(productFromDbRow));
-      localStorage.setItem('dotProducts', JSON.stringify(products));
     } else {
-      await syncProductsToSupabase();
+      products.splice(0, products.length);
     }
     if(adminResult.data?.length) {
       adminEmails = adminResult.data.map(row => normalizeEmail(row.email)).filter(Boolean);
@@ -953,32 +942,32 @@ async function syncSupabaseData() {
       adminResult.data.forEach(row => { adminPermissions[normalizeEmail(row.email)] = row.permissions || []; });
       migrateAdminAccess();
     } else {
-      await syncAdminsToSupabase();
+      adminEmails = [];
+      adminPermissions = {};
     }
     if(orderResult.data?.length) {
       adminOrders = orderResult.data.map(orderFromDbRow);
-      localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders));
+    } else {
+      adminOrders = [];
     }
     if(invoiceResult.data?.length) {
       invoices = {};
       invoiceResult.data.forEach(row => { invoices[row.id] = invoiceFromDbRow(row); });
-      localStorage.setItem('dotInvoices', JSON.stringify(invoices));
+    } else {
+      invoices = {};
     }
     if(blogResult.data?.length) {
       blogPosts = blogResult.data.map(blogFromDbRow);
-      localStorage.setItem('dotBlogPosts', JSON.stringify(blogPosts));
     } else {
-      await syncBlogPostsToSupabase();
+      blogPosts = [];
     }
     if(reviewResult.data?.length) {
       productReviews = reviewResult.data.map(productReviewFromDbRow);
-      localStorage.setItem('dotProductReviews', JSON.stringify(productReviews));
     } else {
-      await syncProductReviewsToSupabase();
+      productReviews = [];
     }
     if(profileResult.data) {
       currentUser = customerProfileFromDbRow(profileResult.data);
-      localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser));
     }
     renderGrids();
     updateAuthUI();
@@ -993,15 +982,15 @@ async function syncSupabaseData() {
   }
 }
 window.syncSupabaseData = syncSupabaseData;
-function saveProducts(){ localStorage.setItem('dotProducts', JSON.stringify(products)); runSupabaseSync(syncProductsToSupabase); }
-function saveAdmins(){ localStorage.setItem('dotAdminEmails', JSON.stringify(adminEmails)); runSupabaseSync(syncAdminsToSupabase); }
-function saveAdminPermissions(){ localStorage.setItem('dotAdminPermissions', JSON.stringify(adminPermissions)); runSupabaseSync(syncAdminsToSupabase); }
-function saveAdminOrders(){ localStorage.setItem('dotAdminOrders', JSON.stringify(adminOrders)); runSupabaseSync(syncOrdersToSupabase); }
-function saveInvoices(){ localStorage.setItem('dotInvoices', JSON.stringify(invoices)); runSupabaseSync(syncInvoicesToSupabase); }
-function saveBlogPosts(){ localStorage.setItem('dotBlogPosts', JSON.stringify(blogPosts)); runSupabaseSync(syncBlogPostsToSupabase); }
-function saveProductReviews(){ localStorage.setItem('dotProductReviews', JSON.stringify(productReviews)); runSupabaseSync(syncProductReviewsToSupabase); }
-function rememberLastInvoice(id){ lastInvoiceId = id; localStorage.setItem('dotLastInvoiceId', id); }
-function saveCurrentUser(){ localStorage.setItem('dotCurrentUser', JSON.stringify(currentUser)); runSupabaseSync(syncCurrentUserToSupabase); }
+function saveProducts(){ runSupabaseSync(syncProductsToSupabase); }
+function saveAdmins(){ runSupabaseSync(syncAdminsToSupabase); }
+function saveAdminPermissions(){ runSupabaseSync(syncAdminsToSupabase); }
+function saveAdminOrders(){ runSupabaseSync(syncOrdersToSupabase); }
+function saveInvoices(){ runSupabaseSync(syncInvoicesToSupabase); }
+function saveBlogPosts(){ runSupabaseSync(syncBlogPostsToSupabase); }
+function saveProductReviews(){ runSupabaseSync(syncProductReviewsToSupabase); }
+function rememberLastInvoice(id){ lastInvoiceId = id; }
+function saveCurrentUser(){ runSupabaseSync(syncCurrentUserToSupabase); }
 function esc(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
 function findProductFromOrderItem(name) {
   const target = String(name || '').replace(/\sx\s*\d+$/i, '').trim().toLowerCase();
@@ -1072,9 +1061,6 @@ function pendingProductReviews() {
 }
 function hydrateProducts(){
   migrateAdminAccess();
-  migrateOrderInvoices();
-  const saved = readStorage('dotProducts', null);
-  if(saved && Array.isArray(saved)) products.splice(0, products.length, ...saved);
   products.forEach((p, index) => {
     p.id = p.id || index + 1;
     p.photo = p.photo || '';
@@ -1084,7 +1070,6 @@ function hydrateProducts(){
     p.emoji = p.emoji || '3D';
     p.photos = Array.isArray(p.photos) ? p.photos.filter(Boolean) : (typeof p.photos === 'string' ? p.photos.split(',').map(photo => photo.trim()).filter(Boolean) : []);
   });
-  saveProducts();
 }
 function migrateOrderInvoices() {
   let changed = false;
@@ -1452,19 +1437,6 @@ function renderAdminOrders() {
   labelDataTables();
 }
 function updateCustomerOrderReviewStatus(review, status) {
-  const customerProfiles = readStorage('dotCustomerProfiles', {});
-  Object.values(customerProfiles).forEach(profile => {
-    if(!Array.isArray(profile.orders)) return;
-    const order = profile.orders.find(item => String(item.id) === String(review.orderId));
-    const reviews = Array.isArray(order?.reviews) ? order.reviews : (order?.review ? [order.review] : []);
-    const savedReview = reviews.find(item => String(item.id) === String(review.id));
-    if(savedReview) {
-      savedReview.status = status;
-      order.reviews = reviews;
-      if(order.review && String(order.review.id) === String(review.id)) order.review.status = status;
-    }
-  });
-  localStorage.setItem('dotCustomerProfiles', JSON.stringify(customerProfiles));
   if(currentUser?.orders) {
     const order = currentUser.orders.find(item => String(item.id) === String(review.orderId));
     const reviews = Array.isArray(order?.reviews) ? order.reviews : (order?.review ? [order.review] : []);
@@ -1542,16 +1514,20 @@ function clearBlogForm() {
     if(field) field.value = '';
   });
 }
-function readBlogPhoto(input) {
+async function readBlogPhoto(input) {
   const file = input.files && input.files[0];
   if(!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
+  try {
+    showToast('Uploading blog photo...');
+    const url = await uploadToSupabaseStorage(file, 'blog-images', 'posts');
     const photoField = document.getElementById('blog-photo');
-    if(photoField) photoField.value = reader.result;
+    if(photoField) photoField.value = url;
     showToast('Blog photo uploaded.');
-  };
-  reader.readAsDataURL(file);
+  } catch (error) {
+    console.error('Blog photo upload failed:', error);
+    showToast('Blog photo upload failed. Check Supabase Storage.');
+    input.value = '';
+  }
 }
 function saveBlogPost() {
   if(!isSuperAdmin()) { showToast('Only super admin can save blog posts.'); return; }
@@ -1787,18 +1763,16 @@ function nameFromEmail(email) {
 function ensureCustomerProfile(user) {
   if(!user) return null;
   const email = normalizeEmail(user.email);
-  const savedProfiles = readStorage('dotCustomerProfiles', {});
-  const saved = savedProfiles[email] || {};
   return {
     email,
-    firstName: user.firstName || saved.firstName || nameFromEmail(email).split(' ')[0] || '',
-    lastName: user.lastName || saved.lastName || nameFromEmail(email).split(' ').slice(1).join(' '),
-    phone: user.phone || saved.phone || '',
-    birthdate: user.birthdate || saved.birthdate || '',
-    gender: user.gender || saved.gender || '',
-    photo: user.photo || saved.photo || '',
-    shippingAddress: user.shippingAddress || saved.shippingAddress || '',
-    orders: Array.isArray(user.orders) ? user.orders : (Array.isArray(saved.orders) ? saved.orders : [])
+    firstName: user.firstName || nameFromEmail(email).split(' ')[0] || '',
+    lastName: user.lastName || nameFromEmail(email).split(' ').slice(1).join(' '),
+    phone: user.phone || '',
+    birthdate: user.birthdate || '',
+    gender: user.gender || '',
+    photo: user.photo || '',
+    shippingAddress: user.shippingAddress || '',
+    orders: Array.isArray(user.orders) ? user.orders : []
   };
 }
 function getCustomerName(user=currentUser) {
@@ -1812,9 +1786,6 @@ function avatarMarkup(user=currentUser, size='nav') {
 }
 function persistCustomerProfile() {
   if(!currentUser || !currentUser.email) return;
-  const savedProfiles = readStorage('dotCustomerProfiles', {});
-  savedProfiles[normalizeEmail(currentUser.email)] = currentUser;
-  localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
   saveCurrentUser();
 }
 function updateAuthUI() {
@@ -2021,20 +1992,25 @@ function showAccountTab(tab, clickedButton) {
     panel.innerHTML = `<h3 style="margin-bottom:1rem">Product Cart</h3><div class="account-empty">${cart.length ? cart.map(c => `${esc(c.name)} x${c.qty} - $${(c.price*c.qty).toFixed(2)}`).join('<br>') : 'Your product cart is empty.'}</div><button class="btn-outline-dark" style="margin-top:1rem" type="button" onclick="closeModal('modal-account');toggleCart()">Open Cart</button>`;
   }
 }
-function readCustomerPhoto(input) {
+async function readCustomerPhoto(input) {
   const file = input.files && input.files[0];
   if(!file) return;
-  if(file.size > 750 * 1024) {
-    showToast('Profile image is too large. Please use an image under 750KB.');
+  if(file.size > 5 * 1024 * 1024) {
+    showToast('Profile image is too large. Please use an image under 5MB.');
     input.value = '';
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    document.getElementById('profile-photo-value').value = reader.result;
-    document.getElementById('profile-photo-preview').innerHTML = `<img src="${reader.result}" alt="${esc(getCustomerName())}">`;
-  };
-  reader.readAsDataURL(file);
+  try {
+    showToast('Uploading profile image...');
+    const url = await uploadToSupabaseStorage(file, 'profile-images', normalizeEmail(currentUser?.email || 'customer'));
+    document.getElementById('profile-photo-value').value = url;
+    document.getElementById('profile-photo-preview').innerHTML = `<img src="${esc(url)}" alt="${esc(getCustomerName())}">`;
+    showToast('Profile image uploaded.');
+  } catch (error) {
+    console.error('Profile image upload failed:', error);
+    showToast('Profile image upload failed. Check Supabase Storage.');
+    input.value = '';
+  }
 }
 function saveCustomerProfile() {
   currentUser.firstName = document.getElementById('profile-first-name').value.trim();
@@ -2055,7 +2031,6 @@ function saveShippingAddress() {
 }
 function handleLogout() {
   currentUser = null;
-  localStorage.removeItem('dotCurrentUser');
   closeModal('modal-account');
   updateAuthUI();
   if(document.getElementById('page-admin')?.classList.contains('active')) {
@@ -2068,21 +2043,23 @@ async function handleSignin() {
   const password = document.getElementById('signin-password')?.value || '';
   if(!email) { showToast('Please enter your email.'); return; }
   if(password.length < 6) { showToast('Please enter your password.'); return; }
-  const savedProfiles = readStorage('dotCustomerProfiles', {});
-  let savedProfile = savedProfiles[email];
+  let savedProfile = null;
   try {
     const remoteProfile = await loadCustomerProfileFromSupabase(email);
     if(remoteProfile) {
-      savedProfile = { ...savedProfile, ...remoteProfile };
-      savedProfiles[email] = savedProfile;
-      localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
+      savedProfile = remoteProfile;
     }
   } catch (error) {
     console.error('Supabase profile load failed:', error);
-    showToast('Could not load Supabase profile. Using this device data.');
+    showToast('Could not load Supabase profile. Check database connection.');
+    return;
   }
   if(savedProfile?.password && savedProfile.password !== password) {
     showToast('Password does not match this account.');
+    return;
+  }
+  if(!savedProfile) {
+    showToast('No database profile found for this email. Please sign up first.');
     return;
   }
   currentUser = ensureCustomerProfile({ ...(savedProfile || {}), email });
@@ -2142,12 +2119,13 @@ function confirmResetCode() {
   const password = document.getElementById('reset-new-password').value;
   if(code !== resetCode) { showToast('Reset code is not correct.'); return; }
   if(password.length < 6) { showToast('New password must be at least 6 characters.'); return; }
-  const savedProfiles = readStorage('dotCustomerProfiles', {});
-  savedProfiles[normalizeEmail(resetEmail)] = {...(savedProfiles[normalizeEmail(resetEmail)] || { email: resetEmail }), password};
-  localStorage.setItem('dotCustomerProfiles', JSON.stringify(savedProfiles));
   if(currentUser && normalizeEmail(currentUser.email) === normalizeEmail(resetEmail)) {
     currentUser.password = password;
     saveCurrentUser();
+  } else {
+    currentUser = ensureCustomerProfile({ email: resetEmail, password });
+    saveCurrentUser();
+    currentUser = null;
   }
   closeModal('modal-reset');
   showToast('Password updated for '+resetEmail+'.');
@@ -2199,15 +2177,19 @@ function loadAdminForEdit(email) {
   });
   showToast('Loaded permissions for '+normalized+'.');
 }
-function readProductPhoto(input, targetId) {
+async function readProductPhoto(input, targetId) {
   const file = input.files && input.files[0];
   if(!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    document.getElementById(targetId).value = reader.result;
-    showToast('Product photo loaded.');
-  };
-  reader.readAsDataURL(file);
+  try {
+    showToast('Uploading product photo...');
+    const url = await uploadToSupabaseStorage(file, 'product-images', 'products');
+    document.getElementById(targetId).value = url;
+    showToast('Product photo uploaded.');
+  } catch (error) {
+    console.error('Product photo upload failed:', error);
+    showToast('Product photo upload failed. Check Supabase Storage.');
+    input.value = '';
+  }
 }
 function openEditProduct(id) {
   if(!canAdmin('editProduct')) { showToast('This admin account cannot edit products.'); return; }
@@ -2284,15 +2266,6 @@ function updateOrderStatus(id, status) {
     invoices[order.invoiceId].status = status;
     saveInvoices();
   }
-  const customerProfiles = readStorage('dotCustomerProfiles', {});
-  Object.values(customerProfiles).forEach(profile => {
-    if(!Array.isArray(profile.orders)) return;
-    const customerOrder = profile.orders.find(item => String(item.id) === String(id));
-    if(customerOrder) {
-      customerOrder.status = customerStatus;
-    }
-  });
-  localStorage.setItem('dotCustomerProfiles', JSON.stringify(customerProfiles));
   if(currentUser?.orders) {
     const ownOrder = currentUser.orders.find(item => String(item.id) === String(id));
     if(ownOrder) ownOrder.status = customerStatus;
