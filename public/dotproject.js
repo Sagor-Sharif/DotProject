@@ -20,6 +20,7 @@ let activeBlogPostId = null;
 let lastInvoiceId = '';
 let resetCode = '';
 let resetEmail = '';
+let pendingSignupProfile = null;
 let activePageId = 'home';
 let isHistoryNavigation = false;
 
@@ -84,7 +85,17 @@ function scrollToAbout() {
 }
 
 // ================== MODALS ==================
-function openModal(id){ document.getElementById(id)?.classList.add('open'); }
+function resetSignupModal() {
+  pendingSignupProfile = null;
+  document.getElementById('signup-step-details')?.classList.add('active');
+  document.getElementById('signup-step-code')?.classList.remove('active');
+  const code = document.getElementById('signup-code');
+  if(code) code.value = '';
+}
+function openModal(id){
+  if(id === 'modal-signup') resetSignupModal();
+  document.getElementById(id)?.classList.add('open');
+}
 function closeModal(id){ document.getElementById(id)?.classList.remove('open'); }
 function closeAllModals(){ document.querySelectorAll('.modal-page').forEach(m=>m.classList.remove('open')); }
 
@@ -1025,7 +1036,6 @@ async function syncSupabaseData() {
     renderAdminOrders();
     renderAdminDashboard();
     rerenderBlogIfOpen();
-    showToast('Supabase database connected.');
   } catch (error) {
     console.error('Supabase load failed:', error);
     showToast('Supabase is not ready yet. Check keys and schema.');
@@ -2151,22 +2161,45 @@ async function handleSignup() {
     showToast(error.message || 'Could not create account.');
     return;
   }
-  currentUser = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
-  try {
-    await syncCurrentUserToSupabase();
-  } catch (profileError) {
-    console.error('Supabase profile sync after sign up failed:', profileError);
-  }
-  closeModal('modal-signup');
-  updateAuthUI();
+  pendingSignupProfile = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
   if(data.session) {
+    currentUser = pendingSignupProfile;
+    await syncCurrentUserToSupabase();
+    pendingSignupProfile = null;
+    closeModal('modal-signup');
+    updateAuthUI();
     showToast('Account created! Welcome to DotProject.');
     openAccountModal();
   } else {
-    currentUser = null;
-    updateAuthUI();
-    showToast('Account created. Check your email to confirm sign in.');
+    document.getElementById('signup-step-details')?.classList.remove('active');
+    document.getElementById('signup-step-code')?.classList.add('active');
+    document.getElementById('signup-code')?.focus();
+    showToast('Email code sent. Check your Gmail inbox.');
   }
+}
+async function verifySignupCode() {
+  const auth = dotAuth();
+  if(!auth) { showToast('Connect Supabase before verifying accounts.'); return; }
+  const email = normalizeEmail(document.getElementById('signup-email').value || pendingSignupProfile?.email || '');
+  const token = document.getElementById('signup-code')?.value.trim();
+  if(!email || !token) { showToast('Enter the email code from Gmail.'); return; }
+  const { data, error } = await auth.verifyOtp({ email, token, type: 'signup' });
+  if(error) {
+    console.error('Supabase signup verification failed:', error);
+    showToast(error.message || 'Code verification failed.');
+    return;
+  }
+  currentUser = authUserProfile(data.user, pendingSignupProfile || { email });
+  pendingSignupProfile = null;
+  try {
+    await syncCurrentUserToSupabase();
+  } catch (profileError) {
+    console.error('Supabase profile sync after verification failed:', profileError);
+  }
+  closeModal('modal-signup');
+  updateAuthUI();
+  showToast('Account verified. Welcome to DotProject.');
+  openAccountModal();
 }
 async function sendMagicLink() {
   const auth = dotAuth();
@@ -2469,7 +2502,10 @@ function bindEnterKey(containerId, handler) {
 }
 function initKeyboardSubmit() {
   bindEnterKey('modal-signin', handleSignin);
-  bindEnterKey('modal-signup', handleSignup);
+  bindEnterKey('modal-signup', () => {
+    if(document.getElementById('signup-step-code')?.classList.contains('active')) verifySignupCode();
+    else handleSignup();
+  });
   bindEnterKey('modal-reset', () => {
     if(document.getElementById('reset-step-email')?.classList.contains('active')) sendResetCode();
     else confirmResetCode();

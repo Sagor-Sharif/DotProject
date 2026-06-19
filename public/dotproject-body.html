@@ -82,33 +82,43 @@
     <button class="modal-close" onclick="closeModal('modal-signup')">✕</button>
     <h2>Create account</h2>
     <p class="subtitle">Join DotProject and start ordering custom 3D prints</p>
-    <div class="form-row">
-      <div class="form-group">
-        <label>First name</label>
-        <input type="text" placeholder="Rafiq" id="signup-first-name">
+    <div class="reset-step active" id="signup-step-details">
+      <div class="form-row">
+        <div class="form-group">
+          <label>First name</label>
+          <input type="text" placeholder="Rafiq" id="signup-first-name">
+        </div>
+        <div class="form-group">
+          <label>Last name</label>
+          <input type="text" placeholder="Ahmed" id="signup-last-name">
+        </div>
       </div>
       <div class="form-group">
-        <label>Last name</label>
-        <input type="text" placeholder="Ahmed" id="signup-last-name">
+        <label>Email address</label>
+        <input type="email" placeholder="you@example.com" id="signup-email">
       </div>
+      <div class="form-group">
+        <label>Phone number</label>
+        <input type="tel" placeholder="+880 01..." id="signup-phone">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" placeholder="Min 8 characters" id="signup-password">
+      </div>
+      <div class="form-check">
+        <input type="checkbox" id="terms">
+        <label for="terms">I agree to the <a class="form-link">Terms of Service</a> and <a class="form-link">Privacy Policy</a></label>
+      </div>
+      <button class="btn-primary btn-full" onclick="handleSignup()">Send Email Code</button>
     </div>
-    <div class="form-group">
-      <label>Email address</label>
-      <input type="email" placeholder="you@example.com" id="signup-email">
+    <div class="reset-step" id="signup-step-code">
+      <div class="form-group">
+        <label>Email verification code</label>
+        <input type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit code" id="signup-code">
+      </div>
+      <button class="btn-primary btn-full" onclick="verifySignupCode()">Verify & Create Account</button>
+      <button class="btn-outline-dark btn-full" style="margin-top:0.75rem" onclick="handleSignup()">Send Code Again</button>
     </div>
-    <div class="form-group">
-      <label>Phone number</label>
-      <input type="tel" placeholder="+880 01..." id="signup-phone">
-    </div>
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" placeholder="Min 8 characters" id="signup-password">
-    </div>
-    <div class="form-check">
-      <input type="checkbox" id="terms">
-      <label for="terms">I agree to the <a class="form-link">Terms of Service</a> and <a class="form-link">Privacy Policy</a></label>
-    </div>
-    <button class="btn-primary btn-full" onclick="handleSignup()">Create Account</button>
     <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-top:1rem">
       Already have an account? <a class="form-link" onclick="openModal('modal-signin');closeModal('modal-signup')">Sign in</a>
     </p>

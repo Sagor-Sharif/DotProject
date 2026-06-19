@@ -30,11 +30,23 @@ Do not commit the Gmail app password to GitHub, `.env.local`, or frontend code.
 
 The storefront uses Supabase Auth for:
 
-- Email and password sign up
+- Email and password sign up with an email verification code
 - Email and password sign in
 - Magic link sign in
 - Password reset email
 - Password update after recovery link
+
+## Signup Code Email Template
+
+In Supabase, open Authentication > Emails > Confirm signup.
+
+Make sure the email body includes the token, for example:
+
+```html
+Your DotProject verification code is: {{ .Token }}
+```
+
+The app asks the user to enter this code after signup.
 
 Run `supabase-schema.sql` after pulling this change so:
 
