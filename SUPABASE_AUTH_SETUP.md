@@ -36,4 +36,8 @@ The storefront uses Supabase Auth for:
 - Password reset email
 - Password update after recovery link
 
-Run `supabase-schema.sql` after pulling this change so `customer_profiles.auth_user_id` exists.
+Run `supabase-schema.sql` after pulling this change so:
+
+- `customer_profiles.auth_user_id` exists
+- every new Supabase Auth user automatically creates a `customer_profiles` row
+- existing Auth users are backfilled into `customer_profiles`

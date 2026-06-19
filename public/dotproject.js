@@ -2152,7 +2152,11 @@ async function handleSignup() {
     return;
   }
   currentUser = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
-  await syncCurrentUserToSupabase();
+  try {
+    await syncCurrentUserToSupabase();
+  } catch (profileError) {
+    console.error('Supabase profile sync after sign up failed:', profileError);
+  }
   closeModal('modal-signup');
   updateAuthUI();
   if(data.session) {

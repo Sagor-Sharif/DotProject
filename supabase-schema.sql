@@ -36,6 +36,62 @@ create table if not exists customer_profiles (
 alter table customer_profiles add column if not exists metadata jsonb not null default '{}'::jsonb;
 alter table customer_profiles add column if not exists auth_user_id uuid references auth.users(id) on delete set null;
 
+create or replace function public.create_customer_profile_for_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.customer_profiles (
+    auth_user_id,
+    email,
+    first_name,
+    last_name,
+    phone,
+    metadata
+  )
+  values (
+    new.id,
+    lower(new.email),
+    coalesce(new.raw_user_meta_data->>'firstName', ''),
+    coalesce(new.raw_user_meta_data->>'lastName', ''),
+    coalesce(new.raw_user_meta_data->>'phone', ''),
+    coalesce(new.raw_user_meta_data, '{}'::jsonb)
+  )
+  on conflict (email) do update set
+    auth_user_id = coalesce(public.customer_profiles.auth_user_id, excluded.auth_user_id),
+    first_name = coalesce(nullif(public.customer_profiles.first_name, ''), excluded.first_name),
+    last_name = coalesce(nullif(public.customer_profiles.last_name, ''), excluded.last_name),
+    phone = coalesce(nullif(public.customer_profiles.phone, ''), excluded.phone),
+    metadata = public.customer_profiles.metadata || excluded.metadata;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists create_customer_profile_after_auth_signup on auth.users;
+create trigger create_customer_profile_after_auth_signup
+  after insert on auth.users
+  for each row execute function public.create_customer_profile_for_auth_user();
+
+insert into public.customer_profiles (auth_user_id, email, first_name, last_name, phone, metadata)
+select
+  users.id,
+  lower(users.email),
+  coalesce(users.raw_user_meta_data->>'firstName', ''),
+  coalesce(users.raw_user_meta_data->>'lastName', ''),
+  coalesce(users.raw_user_meta_data->>'phone', ''),
+  coalesce(users.raw_user_meta_data, '{}'::jsonb)
+from auth.users as users
+where users.email is not null
+on conflict (email) do update set
+  auth_user_id = coalesce(public.customer_profiles.auth_user_id, excluded.auth_user_id),
+  first_name = coalesce(nullif(public.customer_profiles.first_name, ''), excluded.first_name),
+  last_name = coalesce(nullif(public.customer_profiles.last_name, ''), excluded.last_name),
+  phone = coalesce(nullif(public.customer_profiles.phone, ''), excluded.phone),
+  metadata = public.customer_profiles.metadata || excluded.metadata;
+
 create table if not exists admin_access (
   email text primary key,
   permissions text[] not null default array['dashboard','products','orders'],
