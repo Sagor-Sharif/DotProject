@@ -38,7 +38,7 @@ The storefront uses Supabase Auth for:
 
 ## Signup Code Email Template
 
-In Supabase, open Authentication > Emails > Confirm signup.
+In Supabase, open Authentication > Emails > Magic Link.
 
 Make sure the email body includes the token, for example:
 

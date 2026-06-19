@@ -21,6 +21,7 @@ let lastInvoiceId = '';
 let resetCode = '';
 let resetEmail = '';
 let pendingSignupProfile = null;
+let pendingSignupPassword = '';
 let activePageId = 'home';
 let isHistoryNavigation = false;
 
@@ -87,6 +88,7 @@ function scrollToAbout() {
 // ================== MODALS ==================
 function resetSignupModal() {
   pendingSignupProfile = null;
+  pendingSignupPassword = '';
   document.getElementById('signup-step-details')?.classList.add('active');
   document.getElementById('signup-step-code')?.classList.remove('active');
   const code = document.getElementById('signup-code');
@@ -1043,6 +1045,16 @@ async function syncSupabaseData() {
 }
 window.syncSupabaseData = syncSupabaseData;
 window.initSupabaseAuth = initSupabaseAuth;
+Object.assign(window, {
+  handleSignin,
+  handleSignup,
+  verifySignupCode,
+  sendMagicLink,
+  openResetPassword,
+  sendResetCode,
+  confirmResetCode,
+  handleLogout
+});
 function saveProducts(){ runSupabaseSync(syncProductsToSupabase); }
 function saveAdmins(){ runSupabaseSync(syncAdminsToSupabase); }
 function saveAdminPermissions(){ runSupabaseSync(syncAdminsToSupabase); }
@@ -2144,11 +2156,11 @@ async function handleSignup() {
     lastName: document.getElementById('signup-last-name').value.trim(),
     phone
   });
-  const { data, error } = await auth.signUp({
+  const { error } = await auth.signInWithOtp({
     email,
-    password,
     options: {
       emailRedirectTo: authRedirectUrl(),
+      shouldCreateUser: true,
       data: {
         firstName: profile.firstName,
         lastName: profile.lastName,
@@ -2161,21 +2173,12 @@ async function handleSignup() {
     showToast(error.message || 'Could not create account.');
     return;
   }
-  pendingSignupProfile = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
-  if(data.session) {
-    currentUser = pendingSignupProfile;
-    await syncCurrentUserToSupabase();
-    pendingSignupProfile = null;
-    closeModal('modal-signup');
-    updateAuthUI();
-    showToast('Account created! Welcome to DotProject.');
-    openAccountModal();
-  } else {
-    document.getElementById('signup-step-details')?.classList.remove('active');
-    document.getElementById('signup-step-code')?.classList.add('active');
-    document.getElementById('signup-code')?.focus();
-    showToast('Email code sent. Check your Gmail inbox.');
-  }
+  pendingSignupProfile = profile;
+  pendingSignupPassword = password;
+  document.getElementById('signup-step-details')?.classList.remove('active');
+  document.getElementById('signup-step-code')?.classList.add('active');
+  document.getElementById('signup-code')?.focus();
+  showToast('Email code sent. Check your Gmail inbox.');
 }
 async function verifySignupCode() {
   const auth = dotAuth();
@@ -2183,14 +2186,23 @@ async function verifySignupCode() {
   const email = normalizeEmail(document.getElementById('signup-email').value || pendingSignupProfile?.email || '');
   const token = document.getElementById('signup-code')?.value.trim();
   if(!email || !token) { showToast('Enter the email code from Gmail.'); return; }
-  const { data, error } = await auth.verifyOtp({ email, token, type: 'signup' });
+  const { data, error } = await auth.verifyOtp({ email, token, type: 'email' });
   if(error) {
     console.error('Supabase signup verification failed:', error);
     showToast(error.message || 'Code verification failed.');
     return;
   }
+  if(pendingSignupPassword) {
+    const { error: passwordError } = await auth.updateUser({ password: pendingSignupPassword });
+    if(passwordError) {
+      console.error('Supabase signup password set failed:', passwordError);
+      showToast(passwordError.message || 'Code verified, but password could not be saved.');
+      return;
+    }
+  }
   currentUser = authUserProfile(data.user, pendingSignupProfile || { email });
   pendingSignupProfile = null;
+  pendingSignupPassword = '';
   try {
     await syncCurrentUserToSupabase();
   } catch (profileError) {
