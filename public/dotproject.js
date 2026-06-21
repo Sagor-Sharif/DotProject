@@ -2156,11 +2156,11 @@ async function handleSignup() {
     lastName: document.getElementById('signup-last-name').value.trim(),
     phone
   });
-  const { error } = await auth.signInWithOtp({
+  const { data, error } = await auth.signUp({
     email,
+    password,
     options: {
       emailRedirectTo: authRedirectUrl(),
-      shouldCreateUser: true,
       data: {
         firstName: profile.firstName,
         lastName: profile.lastName,
@@ -2173,8 +2173,23 @@ async function handleSignup() {
     showToast(error.message || 'Could not create account.');
     return;
   }
-  pendingSignupProfile = profile;
+  pendingSignupProfile = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
   pendingSignupPassword = password;
+  if(data.session) {
+    currentUser = pendingSignupProfile;
+    pendingSignupProfile = null;
+    pendingSignupPassword = '';
+    try {
+      await syncCurrentUserToSupabase();
+    } catch (profileError) {
+      console.error('Supabase profile sync after sign up failed:', profileError);
+    }
+    closeModal('modal-signup');
+    updateAuthUI();
+    showToast('Account created! Welcome to DotProject.');
+    openAccountModal();
+    return;
+  }
   document.getElementById('signup-step-details')?.classList.remove('active');
   document.getElementById('signup-step-code')?.classList.add('active');
   document.getElementById('signup-code')?.focus();
@@ -2186,19 +2201,11 @@ async function verifySignupCode() {
   const email = normalizeEmail(document.getElementById('signup-email').value || pendingSignupProfile?.email || '');
   const token = document.getElementById('signup-code')?.value.trim();
   if(!email || !token) { showToast('Enter the email code from Gmail.'); return; }
-  const { data, error } = await auth.verifyOtp({ email, token, type: 'email' });
+  const { data, error } = await auth.verifyOtp({ email, token, type: 'signup' });
   if(error) {
     console.error('Supabase signup verification failed:', error);
     showToast(error.message || 'Code verification failed.');
     return;
-  }
-  if(pendingSignupPassword) {
-    const { error: passwordError } = await auth.updateUser({ password: pendingSignupPassword });
-    if(passwordError) {
-      console.error('Supabase signup password set failed:', passwordError);
-      showToast(passwordError.message || 'Code verified, but password could not be saved.');
-      return;
-    }
   }
   currentUser = authUserProfile(data.user, pendingSignupProfile || { email });
   pendingSignupProfile = null;
