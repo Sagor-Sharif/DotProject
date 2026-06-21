@@ -22,6 +22,7 @@ let resetCode = '';
 let resetEmail = '';
 let pendingSignupProfile = null;
 let pendingSignupPassword = '';
+let signupEmailSending = false;
 let activePageId = 'home';
 let isHistoryNavigation = false;
 
@@ -89,10 +90,24 @@ function scrollToAbout() {
 function resetSignupModal() {
   pendingSignupProfile = null;
   pendingSignupPassword = '';
+  signupEmailSending = false;
   document.getElementById('signup-step-details')?.classList.add('active');
   document.getElementById('signup-step-code')?.classList.remove('active');
   const code = document.getElementById('signup-code');
   if(code) code.value = '';
+  setSignupSending(false);
+}
+function setSignupSending(isSending) {
+  signupEmailSending = Boolean(isSending);
+  document.querySelectorAll('[data-signup-send]').forEach(button => {
+    button.disabled = signupEmailSending;
+    button.textContent = signupEmailSending ? 'Sending...' : (button.dataset.signupSend || 'Send Email Code');
+  });
+}
+function showSignupCodeStep() {
+  document.getElementById('signup-step-details')?.classList.remove('active');
+  document.getElementById('signup-step-code')?.classList.add('active');
+  document.getElementById('signup-code')?.focus();
 }
 function openModal(id){
   if(id === 'modal-signup') resetSignupModal();
@@ -2144,6 +2159,7 @@ async function handleSignin() {
 async function handleSignup() {
   const auth = dotAuth();
   if(!auth) { showToast('Connect Supabase before creating accounts.'); return; }
+  if(signupEmailSending) return;
   const email = normalizeEmail(document.getElementById('signup-email').value);
   const password = document.getElementById('signup-password').value;
   const phone = document.getElementById('signup-phone')?.value.trim() || '';
@@ -2156,6 +2172,11 @@ async function handleSignup() {
     lastName: document.getElementById('signup-last-name').value.trim(),
     phone
   });
+  pendingSignupProfile = profile;
+  pendingSignupPassword = password;
+  showSignupCodeStep();
+  setSignupSending(true);
+  showToast('Sending email code...');
   const { data, error } = await auth.signUp({
     email,
     password,
@@ -2169,12 +2190,31 @@ async function handleSignup() {
     }
   });
   if(error) {
+    const message = String(error.message || '').toLowerCase();
+    if(message.includes('already') || message.includes('registered')) {
+      const resend = await auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: authRedirectUrl() }
+      });
+      setSignupSending(false);
+      if(resend.error) {
+        console.error('Supabase signup resend failed:', resend.error);
+        showToast(resend.error.message || 'Could not resend signup code.');
+        return;
+      }
+      showToast('Signup code resent. Check your Gmail inbox.');
+      return;
+    }
+    setSignupSending(false);
     console.error('Supabase sign up failed:', error);
-    showToast(error.message || 'Could not create account.');
+    if(message.includes('rate limit')) showToast('Email rate limit reached. Please wait before trying again.');
+    else showToast(error.message || 'Could not send signup code.');
     return;
   }
   pendingSignupProfile = ensureCustomerProfile({ ...profile, authUserId: data.user?.id || '' });
   pendingSignupPassword = password;
+  setSignupSending(false);
   if(data.session) {
     currentUser = pendingSignupProfile;
     pendingSignupProfile = null;
@@ -2190,9 +2230,6 @@ async function handleSignup() {
     openAccountModal();
     return;
   }
-  document.getElementById('signup-step-details')?.classList.remove('active');
-  document.getElementById('signup-step-code')?.classList.add('active');
-  document.getElementById('signup-code')?.focus();
   showToast('Email code sent. Check your Gmail inbox.');
 }
 async function verifySignupCode() {

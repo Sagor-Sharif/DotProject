@@ -109,7 +109,7 @@
         <input type="checkbox" id="terms">
         <label for="terms">I agree to the <a class="form-link">Terms of Service</a> and <a class="form-link">Privacy Policy</a></label>
       </div>
-      <button class="btn-primary btn-full" onclick="handleSignup()">Send Email Code</button>
+      <button class="btn-primary btn-full" data-signup-send="Send Email Code" onclick="handleSignup()">Send Email Code</button>
     </div>
     <div class="reset-step" id="signup-step-code">
       <div class="form-group">
@@ -117,7 +117,7 @@
         <input type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 digit code" id="signup-code">
       </div>
       <button class="btn-primary btn-full" onclick="verifySignupCode()">Verify & Create Account</button>
-      <button class="btn-outline-dark btn-full" style="margin-top:0.75rem" onclick="handleSignup()">Send Code Again</button>
+      <button class="btn-outline-dark btn-full" data-signup-send="Send Code Again" style="margin-top:0.75rem" onclick="handleSignup()">Send Code Again</button>
     </div>
     <p style="text-align:center;font-size:0.85rem;color:var(--text-muted);margin-top:1rem">
       Already have an account? <a class="form-link" onclick="openModal('modal-signin');closeModal('modal-signup')">Sign in</a>
