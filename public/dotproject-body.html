@@ -420,7 +420,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© 2026 DotProject. All rights reserved. Made with ❤️ in Dhaka.</p>
+      <p>© 2026 DotProject. All rights reserved. Made by Sagor Sharif.</p>
       <p style="color:var(--taupe)">Privacy · Terms · Cookies</p>
     </div>
   </footer>
@@ -521,6 +521,7 @@
           <div class="pay-option" data-payment="nagad" onclick="selectPay(this)">📱 Nagad</div>
           <div class="pay-option" data-payment="cod" onclick="selectPay(this)">💵 Cash on Delivery</div>
         </div>
+        <p id="no-payment-methods" class="payment-unavailable" hidden>No payment method is currently available. Please contact DotProject support.</p>
         <div class="payment-fields active" id="card-fields" data-payment-panel="card">
           <div class="form-group"><label>Card Number</label><input type="text" id="card-number" placeholder="1234 5678 9012 3456"></div>
           <div class="card-row">
@@ -604,6 +605,7 @@
       <div class="admin-nav-item" data-admin-permission="products" onclick="switchAdmin('products',this)">Products</div>
       <div class="admin-nav-item" data-admin-permission="stock" onclick="switchAdmin('stock',this)">Stock</div>
       <div class="admin-nav-item" data-admin-permission="orders" onclick="switchAdmin('orders',this)">Orders</div>
+      <div class="admin-nav-item" data-admin-permission="payments" onclick="switchAdmin('payments',this)">Payments</div>
       <div class="admin-nav-item" id="admin-blog-nav" style="display:none" onclick="switchAdmin('blogs',this)">Blog</div>
       <div style="padding:1.5rem;margin-top:2rem;border-top:1px solid rgba(255,255,255,0.06)">
         <div style="font-size:0.8rem;color:var(--taupe);margin-bottom:8px">Logged in as</div>
@@ -637,6 +639,7 @@
             <label><input type="checkbox" class="grant-permission" value="stock" checked> Stock</label>
             <label><input type="checkbox" class="grant-permission" value="orders" checked> Orders</label>
             <label><input type="checkbox" class="grant-permission" value="orderStatus" checked> Update Orders</label>
+            <label><input type="checkbox" class="grant-permission" value="payments" checked> Payment Settings</label>
           </div>
           <div class="admin-access-list" id="admin-access-list"></div>
         </div>
@@ -750,6 +753,35 @@
             <thead><tr><th>Product</th><th>Category</th><th>Current Stock</th><th>Status</th><th>Update</th></tr></thead>
             <tbody id="admin-stock-table"></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- PAYMENT SETTINGS -->
+      <div id="admin-payments" style="display:none">
+        <h2>Payment Settings</h2>
+        <p class="sub">Control checkout methods and mobile payment numbers.</p>
+        <div class="admin-access-panel">
+          <div class="payment-settings-grid">
+            <label class="payment-setting-row">
+              <span><strong>Card Payment</strong><small>Accept debit or credit card details.</small></span>
+              <input type="checkbox" id="payment-card-enabled">
+            </label>
+            <label class="payment-setting-row">
+              <span><strong>bKash</strong><small>Accept bKash Send Money payments.</small></span>
+              <input type="checkbox" id="payment-bkash-enabled">
+            </label>
+            <div class="form-group"><label>bKash Personal Number</label><input type="tel" id="payment-bkash-number" placeholder="01XXXXXXXXX"></div>
+            <label class="payment-setting-row">
+              <span><strong>Nagad</strong><small>Accept Nagad Send Money payments.</small></span>
+              <input type="checkbox" id="payment-nagad-enabled">
+            </label>
+            <div class="form-group"><label>Nagad Personal Number</label><input type="tel" id="payment-nagad-number" placeholder="01XXXXXXXXX"></div>
+            <label class="payment-setting-row">
+              <span><strong>Cash on Delivery</strong><small>Allow customers to pay after delivery.</small></span>
+              <input type="checkbox" id="payment-cod-enabled">
+            </label>
+          </div>
+          <button class="btn-primary" type="button" onclick="savePaymentSettings()">Save Payment Settings</button>
         </div>
       </div>
 

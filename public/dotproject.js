@@ -6,11 +6,15 @@ const products = [];
 
 let cart = [];
 const SUPER_ADMIN_EMAIL = 'sagorsharif27@gmail.com';
-const BKASH_PERSONAL_NUMBER = '0175047924';
-const NAGAD_PERSONAL_NUMBER = '0175047924';
+let paymentSettings = {
+  card: { enabled: true },
+  bkash: { enabled: true, number: '0175047924' },
+  nagad: { enabled: true, number: '0175047924' },
+  cod: { enabled: true }
+};
 let currentUser = null;
 let adminEmails = [];
-const ALL_ADMIN_PERMISSIONS = ['dashboard','addProduct','products','editProduct','stock','orders','orderStatus'];
+const ALL_ADMIN_PERMISSIONS = ['dashboard','addProduct','products','editProduct','stock','orders','orderStatus','payments'];
 let adminPermissions = {};
 let adminOrders = [];
 let invoices = {};
@@ -284,8 +288,8 @@ function showCheckoutStage(stage = 'details') {
   document.getElementById('checkout-place-btn')?.classList.toggle('hidden', !isPayment);
   updateCheckoutSteps(isPayment ? 'payment' : 'details');
   if(isPayment) {
-    syncMerchantPaymentNumbers();
-    const selectedPay = document.querySelector('.pay-option.selected') || document.querySelector('.pay-option[data-payment="card"]');
+    renderCheckoutPaymentMethods();
+    const selectedPay = document.querySelector('.pay-option.selected:not([hidden])') || document.querySelector('.pay-option:not([hidden])');
     if(selectedPay) selectPay(selectedPay);
   }
 }
@@ -338,16 +342,53 @@ function continueToPayment() {
 function syncMerchantPaymentNumbers() {
   const bkashNumber = document.getElementById('bkash-merchant-number');
   const nagadNumber = document.getElementById('nagad-merchant-number');
-  if(bkashNumber) bkashNumber.textContent = BKASH_PERSONAL_NUMBER;
-  if(nagadNumber) nagadNumber.textContent = NAGAD_PERSONAL_NUMBER;
+  if(bkashNumber) bkashNumber.textContent = paymentSettings.bkash.number || 'Unavailable';
+  if(nagadNumber) nagadNumber.textContent = paymentSettings.nagad.number || 'Unavailable';
+}
+
+function normalizePaymentSettings(value = {}) {
+  return {
+    card: { enabled: value.card?.enabled !== false },
+    bkash: { enabled: value.bkash?.enabled !== false, number: String(value.bkash?.number || '0175047924') },
+    nagad: { enabled: value.nagad?.enabled !== false, number: String(value.nagad?.number || '0175047924') },
+    cod: { enabled: value.cod?.enabled !== false }
+  };
+}
+
+function enabledPaymentMethods() {
+  return ['card','bkash','nagad','cod'].filter(method => paymentSettings[method]?.enabled);
+}
+
+function renderCheckoutPaymentMethods() {
+  const enabledMethods = enabledPaymentMethods();
+  document.querySelectorAll('.pay-option[data-payment]').forEach(option => {
+    const enabled = enabledMethods.includes(option.dataset.payment);
+    option.hidden = !enabled;
+    if(!enabled) option.classList.remove('selected');
+  });
+  document.querySelectorAll('[data-payment-panel]').forEach(panel => {
+    if(!enabledMethods.includes(panel.dataset.paymentPanel)) panel.classList.remove('active');
+  });
+  const selected = document.querySelector('.pay-option.selected:not([hidden])');
+  const fallback = document.querySelector('.pay-option:not([hidden])');
+  if(!selected && fallback) fallback.classList.add('selected');
+  const unavailable = document.getElementById('no-payment-methods');
+  const placeOrderButton = document.getElementById('checkout-place-btn');
+  if(unavailable) unavailable.hidden = enabledMethods.length > 0;
+  if(placeOrderButton) placeOrderButton.disabled = enabledMethods.length === 0;
+  syncMerchantPaymentNumbers();
 }
 
 function getSelectedPaymentMethod() {
-  return document.querySelector('.pay-option.selected')?.dataset.payment || 'card';
+  return document.querySelector('.pay-option.selected:not([hidden])')?.dataset.payment || enabledPaymentMethods()[0] || '';
 }
 
 function validatePaymentDetails() {
   const method = getSelectedPaymentMethod();
+  if(!method || !paymentSettings[method]?.enabled) {
+    showToast('No payment method is currently available.');
+    return false;
+  }
   if(method === 'card') {
     const cardNumber = document.getElementById('card-number')?.value.replace(/\s+/g, '') || '';
     const cardName = document.getElementById('card-name')?.value.trim();
@@ -657,9 +698,10 @@ async function placeOrder() {
 }
 
 function selectPay(el) {
+  const method = el.dataset.payment || 'card';
+  if(!paymentSettings[method]?.enabled) return;
   document.querySelectorAll('.pay-option').forEach(e=>e.classList.remove('selected'));
   el.classList.add('selected');
-  const method = el.dataset.payment || 'card';
   document.querySelectorAll('[data-payment-panel]').forEach(panel => {
     panel.classList.toggle('active', panel.dataset.paymentPanel === method);
   });
@@ -669,7 +711,7 @@ function selectPay(el) {
 
 // ================== ADMIN ==================
 function switchAdmin(section, el) {
-  const permissionMap = { dashboard:'dashboard', 'add-product':'addProduct', products:'products', stock:'stock', orders:'orders', blogs:'dashboard' };
+  const permissionMap = { dashboard:'dashboard', 'add-product':'addProduct', products:'products', stock:'stock', orders:'orders', payments:'payments', blogs:'dashboard' };
   if(section === 'blogs' && !isSuperAdmin()) {
     showToast('Only super admin can manage blog posts.');
     return;
@@ -680,7 +722,7 @@ function switchAdmin(section, el) {
   }
   document.querySelectorAll('.admin-nav-item').forEach(i=>i.classList.remove('active'));
   if(el) el.classList.add('active');
-  ['dashboard','add-product','products','stock','orders','blogs'].forEach(s=>{
+  ['dashboard','add-product','products','stock','orders','payments','blogs'].forEach(s=>{
     const el = document.getElementById('admin-'+s);
     if(el) el.style.display = 'none';
   });
@@ -689,6 +731,7 @@ function switchAdmin(section, el) {
   if(section==='products') renderAdminTable();
   if(section==='stock') renderStockTable();
   if(section==='orders') { renderAdminOrders(); setManualInvoiceDate(); }
+  if(section==='payments') renderPaymentSettings();
   if(section==='blogs') renderAdminBlogs();
   if(section==='dashboard') renderAdminDashboard();
 }
@@ -1040,6 +1083,15 @@ async function syncBlogPostsToSupabase(){
   const { error } = await db.from('blog_posts').upsert(blogPosts.map(blogToDbRow), { onConflict: 'local_id' });
   if(error) throw error;
 }
+async function syncPaymentSettingsToSupabase(){
+  const db = requireDotDb();
+  const { error } = await db.from('site_settings').upsert({
+    key: 'payment_methods',
+    value: paymentSettings,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'key' });
+  if(error) throw error;
+}
 async function deleteBlogPostFromSupabase(post) {
   if(!hasDotDb() || !post) return;
   const db = dotDb();
@@ -1067,16 +1119,18 @@ async function syncSupabaseData() {
     const { data: sessionData } = await db.auth.getSession();
     const signedIn = Boolean(sessionData?.session?.user);
     const emptyResult = () => Promise.resolve({ data: [], error: null });
-    const [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult] = await Promise.all([
+    const [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult, paymentResult] = await Promise.all([
       db.from('products').select('*').order('created_at', { ascending: true }),
       signedIn ? db.from('admin_access').select('*').order('created_at', { ascending: true }) : emptyResult(),
       signedIn ? db.from('orders').select('*').order('created_at', { ascending: false }) : emptyResult(),
       signedIn ? db.from('invoices').select('*').order('created_at', { ascending: false }) : emptyResult(),
       db.from('blog_posts').select('*, blog_likes(user_email), blog_comments(name,comment,created_at,user_email)').order('created_at', { ascending: false }),
       db.from('product_reviews').select('*').order('created_at', { ascending: false }),
-      signedIn && currentUser?.email ? db.from('customer_profiles').select('*').eq('email', normalizeEmail(currentUser.email)).maybeSingle() : Promise.resolve({ data:null, error:null })
+      signedIn && currentUser?.email ? db.from('customer_profiles').select('*').eq('email', normalizeEmail(currentUser.email)).maybeSingle() : Promise.resolve({ data:null, error:null }),
+      db.from('site_settings').select('value').eq('key', 'payment_methods').maybeSingle()
     ]);
-    [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult].forEach(result => { if(result.error) throw result.error; });
+    [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult, paymentResult].forEach(result => { if(result.error) throw result.error; });
+    if(paymentResult.data?.value) paymentSettings = normalizePaymentSettings(paymentResult.data.value);
     if(productResult.data?.length) {
       products.splice(0, products.length, ...productResult.data.map(productFromDbRow));
     } else {
@@ -1120,6 +1174,8 @@ async function syncSupabaseData() {
     renderAdminBlogs();
     renderAdminOrders();
     renderAdminDashboard();
+    renderPaymentSettings();
+    renderCheckoutPaymentMethods();
     rerenderBlogIfOpen();
   } catch (error) {
     console.error('Supabase load failed:', error);
@@ -1831,6 +1887,61 @@ function renderAdminDashboard() {
   if(ordersEl) ordersEl.textContent = adminOrders.length;
   if(pendingEl) pendingEl.textContent = pendingCount;
 }
+function renderPaymentSettings() {
+  const values = {
+    'payment-card-enabled': paymentSettings.card.enabled,
+    'payment-bkash-enabled': paymentSettings.bkash.enabled,
+    'payment-nagad-enabled': paymentSettings.nagad.enabled,
+    'payment-cod-enabled': paymentSettings.cod.enabled
+  };
+  Object.entries(values).forEach(([id, checked]) => {
+    const input = document.getElementById(id);
+    if(input) input.checked = Boolean(checked);
+  });
+  const bkashNumber = document.getElementById('payment-bkash-number');
+  const nagadNumber = document.getElementById('payment-nagad-number');
+  if(bkashNumber) bkashNumber.value = paymentSettings.bkash.number || '';
+  if(nagadNumber) nagadNumber.value = paymentSettings.nagad.number || '';
+}
+async function savePaymentSettings() {
+  if(!canAdmin('payments')) {
+    showToast('This admin account cannot update payment settings.');
+    return;
+  }
+  const nextSettings = normalizePaymentSettings({
+    card: { enabled: document.getElementById('payment-card-enabled')?.checked },
+    bkash: {
+      enabled: document.getElementById('payment-bkash-enabled')?.checked,
+      number: document.getElementById('payment-bkash-number')?.value.trim()
+    },
+    nagad: {
+      enabled: document.getElementById('payment-nagad-enabled')?.checked,
+      number: document.getElementById('payment-nagad-number')?.value.trim()
+    },
+    cod: { enabled: document.getElementById('payment-cod-enabled')?.checked }
+  });
+  if(!Object.values(nextSettings).some(method => method.enabled)) {
+    showToast('Keep at least one payment method enabled.');
+    return;
+  }
+  if(nextSettings.bkash.enabled && !/^01\d{9}$/.test(nextSettings.bkash.number)) {
+    showToast('Enter a valid 11-digit bKash number.');
+    return;
+  }
+  if(nextSettings.nagad.enabled && !/^01\d{9}$/.test(nextSettings.nagad.number)) {
+    showToast('Enter a valid 11-digit Nagad number.');
+    return;
+  }
+  paymentSettings = nextSettings;
+  try {
+    await syncPaymentSettingsToSupabase();
+    renderCheckoutPaymentMethods();
+    showToast('Payment settings updated.');
+  } catch (error) {
+    console.error('Payment settings update failed:', error);
+    showToast(error.message || 'Payment settings could not be saved.');
+  }
+}
 function applyAdminPermissions() {
   document.querySelectorAll('[data-admin-permission]').forEach(item => {
     const allowed = canAdmin(item.dataset.adminPermission);
@@ -1845,7 +1956,8 @@ function openDefaultAdminSection() {
     ['addProduct','add-product'],
     ['products','products'],
     ['stock','stock'],
-    ['orders','orders']
+    ['orders','orders'],
+    ['payments','payments']
   ];
   const target = sectionMap.find(([permission]) => canAdmin(permission)) || sectionMap[0];
   const navItem = document.querySelector(`[data-admin-permission="${target[0]}"]`);
@@ -1888,6 +2000,7 @@ function showPage(id, options = {}) {
     renderAdminOrders();
     renderAdminBlogs();
     renderAdminDashboard();
+    renderPaymentSettings();
     document.getElementById('admin-current-user').textContent = currentUser.email;
     openDefaultAdminSection();
   }
