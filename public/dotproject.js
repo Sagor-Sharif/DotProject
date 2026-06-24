@@ -736,7 +736,8 @@ function authUserProfile(user, fallback = {}) {
     email: normalizeEmail(user?.email || fallback.email || ''),
     firstName: metadata.firstName || fallback.firstName || '',
     lastName: metadata.lastName || fallback.lastName || '',
-    phone: metadata.phone || fallback.phone || ''
+    phone: metadata.phone || fallback.phone || '',
+    photo: fallback.photo || metadata.avatar_url || metadata.picture || ''
   });
 }
 async function applySupabaseAuthUser(user, options = {}) {
@@ -982,7 +983,13 @@ async function syncInvoicesToSupabase(){
   const rows = Object.values(invoices).map(invoiceToDbRow);
   if(hasDotDb() && rows.length) await dotDb().from('invoices').upsert(rows, { onConflict: 'id' });
 }
-async function syncCurrentUserToSupabase(){ if(hasDotDb() && currentUser?.email) await dotDb().from('customer_profiles').upsert(customerProfileToDbRow(currentUser), { onConflict: 'email' }); }
+async function syncCurrentUserToSupabase(){
+  if(!hasDotDb() || !currentUser?.email) return;
+  const { error } = await dotDb()
+    .from('customer_profiles')
+    .upsert(customerProfileToDbRow(currentUser), { onConflict: 'email' });
+  if(error) throw error;
+}
 async function loadCustomerProfileFromSupabase(email) {
   if(!hasDotDb() || !email) return null;
   const { data, error } = await dotDb()
@@ -1927,6 +1934,7 @@ function ensureCustomerProfile(user) {
   if(!user) return null;
   const email = normalizeEmail(user.email);
   return {
+    authUserId: user.authUserId || '',
     email,
     firstName: user.firstName || nameFromEmail(email).split(' ')[0] || '',
     lastName: user.lastName || nameFromEmail(email).split(' ').slice(1).join(' '),
@@ -1934,7 +1942,8 @@ function ensureCustomerProfile(user) {
     birthdate: user.birthdate || '',
     gender: user.gender || '',
     photo: user.photo || '',
-    shippingAddress: user.shippingAddress || '',
+    address: user.address || user.shippingAddress || '',
+    shippingAddress: user.shippingAddress || user.address || '',
     orders: Array.isArray(user.orders) ? user.orders : []
   };
 }
@@ -1963,7 +1972,6 @@ function updateAuthUI() {
     document.getElementById('nav-account-photo').innerHTML = avatarMarkup(currentUser);
     document.getElementById('nav-account-name').textContent = getCustomerName(currentUser);
     if(adminBtn) adminBtn.style.display = isAdminEmail(currentUser.email) ? 'block' : 'none';
-    persistCustomerProfile();
   } else {
     btn.style.display = 'inline-flex';
     btn.textContent = 'Sign In';
@@ -2174,26 +2182,34 @@ async function readCustomerPhoto(input) {
   try {
     showToast('Uploading profile image...');
     const url = await uploadToSupabaseStorage(file, 'profile-images', normalizeEmail(currentUser?.email || 'customer'));
+    currentUser.photo = url;
     document.getElementById('profile-photo-value').value = url;
     document.getElementById('profile-photo-preview').innerHTML = `<img src="${esc(url)}" alt="${esc(getCustomerName())}">`;
-    showToast('Profile image uploaded.');
+    await syncCurrentUserToSupabase();
+    updateAuthUI();
+    showToast('Profile image uploaded and saved.');
   } catch (error) {
     console.error('Profile image upload failed:', error);
     showToast('Profile image upload failed. Check Supabase Storage.');
     input.value = '';
   }
 }
-function saveCustomerProfile() {
+async function saveCustomerProfile() {
   currentUser.firstName = document.getElementById('profile-first-name').value.trim();
   currentUser.lastName = document.getElementById('profile-last-name').value.trim();
   currentUser.phone = document.getElementById('profile-phone').value.trim();
   currentUser.birthdate = document.getElementById('profile-birthdate').value;
   currentUser.gender = document.getElementById('profile-gender').value;
   currentUser.photo = document.getElementById('profile-photo-value').value;
-  persistCustomerProfile();
-  updateAuthUI();
-  document.getElementById('account-subtitle').textContent = getCustomerName()+' - '+currentUser.email;
-  showToast('Profile updated.');
+  try {
+    await syncCurrentUserToSupabase();
+    updateAuthUI();
+    document.getElementById('account-subtitle').textContent = getCustomerName()+' - '+currentUser.email;
+    showToast('Profile updated.');
+  } catch (error) {
+    console.error('Supabase profile update failed:', error);
+    showToast(error.message || 'Profile could not be saved.');
+  }
 }
 function saveShippingAddress() {
   currentUser.shippingAddress = document.getElementById('profile-shipping-address').value.trim();
