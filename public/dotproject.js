@@ -1299,7 +1299,7 @@ function migrateOrderInvoices() {
   });
   if(changed) saveAdminOrders();
 }
-function visibleProducts(){ return products.filter(p => p.status === 'Active'); }
+function visibleProducts(){ return products.filter(p => p.status !== 'Draft'); }
 function getNewProducts(){ return visibleProducts().filter(p=>p.isNew); }
 function getTopProducts(){ return visibleProducts().filter(p=>p.isTop); }
 function photoListFrom(value) {
