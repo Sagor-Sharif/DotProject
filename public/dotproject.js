@@ -521,10 +521,15 @@ function renderCheckoutSummary() {
   document.getElementById('summary-total-price').textContent = '$'+subtotal.toFixed(2);
 }
 
-function placeOrder() {
+async function placeOrder() {
   if(!hasCartItems()) {
     showToast('Your cart is empty. Add a product before placing an order.');
     showPage('home');
+    return;
+  }
+  if(!currentUser?.email) {
+    showToast('Please sign in before placing an order.');
+    openModal('modal-signin');
     return;
   }
   if(!validateCheckoutDetails()) {
@@ -532,21 +537,36 @@ function placeOrder() {
     return;
   }
   if(!validatePaymentDetails()) return;
-  updateCheckoutSteps('confirm');
   const num = 'DP-' + String(Math.floor(Math.random()*9000)+1000);
-  document.getElementById('success-order-num').textContent = 'Order #'+num;
-  const orderTotal = cart.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.qty || 0)), 0);
   const paymentMethod = getSelectedPaymentMethod();
-  const orderItems = cart.map(item => item.name+' x'+item.qty).join(', ');
   const productItems = cart.map(item => ({ id: item.id, name: item.name, qty: item.qty }));
   const orderDate = new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' });
   const details = getCheckoutDetails();
+  const address = [details.address, details.city, details.district].filter(Boolean).join(', ');
+  const { data: createdOrder, error } = await requireDotDb().rpc('create_customer_order', {
+    p_order_id: num,
+    p_customer_name: details.name,
+    p_phone: details.phone,
+    p_address: address,
+    p_items: productItems.map(item => ({ ...item, id: String(item.id) })),
+    p_payment_method: paymentMethod
+  });
+  if(error) {
+    console.error('Order creation failed:', error);
+    showToast(error.message || 'Could not place this order.');
+    return;
+  }
+  const orderTotal = Number(createdOrder?.total || 0);
+  const orderItems = createdOrder?.items || cart.map(item => item.name+' x'+item.qty).join(', ');
+  const invoiceId = createdOrder?.invoice_id || ('INV-' + num.replace(/^DP-/, ''));
+  updateCheckoutSteps('confirm');
+  document.getElementById('success-order-num').textContent = 'Order #'+num;
   const orderRecord = {
     id: num,
     customer: details.name,
-    email: details.email,
+    email: currentUser.email,
     phone: details.phone,
-    address: [details.address, details.city, details.district].filter(Boolean).join(', '),
+    address,
     items: orderItems,
     total: orderTotal,
     date: orderDate,
@@ -555,10 +575,24 @@ function placeOrder() {
     payment: paymentMethod,
     productItems
   };
-  const invoice = createInvoiceRecord(orderRecord);
-  orderRecord.invoiceId = invoice.id;
+  const invoice = {
+    id: invoiceId,
+    orderId: num,
+    customer: details.name,
+    email: currentUser.email,
+    phone: details.phone,
+    date: orderDate,
+    items: orderItems,
+    total: orderTotal,
+    status: 'Pending',
+    source: 'Online',
+    address,
+    payment: paymentMethod
+  };
+  invoices[invoiceId] = invoice;
+  rememberLastInvoice(invoiceId);
+  orderRecord.invoiceId = invoiceId;
   adminOrders.unshift({...orderRecord, date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit' })});
-  saveAdminOrders();
   cart.forEach(item => {
     const product = products.find(product => product.id === item.id);
     if(product) {
@@ -567,29 +601,27 @@ function placeOrder() {
       if(product.stock <= 0) product.status = 'Out of Stock';
     }
   });
-  saveProducts();
-  if(currentUser) {
-    currentUser.firstName = currentUser.firstName || details.name.split(' ')[0] || '';
-    currentUser.lastName = currentUser.lastName || details.name.split(' ').slice(1).join(' ');
-    currentUser.phone = currentUser.phone || details.phone;
-    currentUser.shippingAddress = details.address;
-    currentUser.orders = Array.isArray(currentUser.orders) ? currentUser.orders : [];
-    currentUser.orders.unshift({
-      id: num,
-      items: orderItems,
-      total: '$'+orderTotal.toFixed(2),
-      status: paymentMethod === 'cod' ? 'To Ship' : 'To Pay',
-      date: orderDate,
-      invoiceId: invoice.id,
-      source: 'Online',
-      payment: paymentMethod,
-      address: orderRecord.address,
-      productItems
-    });
-    persistCustomerProfile();
-  }
+  currentUser.firstName = currentUser.firstName || details.name.split(' ')[0] || '';
+  currentUser.lastName = currentUser.lastName || details.name.split(' ').slice(1).join(' ');
+  currentUser.phone = currentUser.phone || details.phone;
+  currentUser.shippingAddress = details.address;
+  currentUser.orders = Array.isArray(currentUser.orders) ? currentUser.orders : [];
+  currentUser.orders.unshift({
+    id: num,
+    items: orderItems,
+    total: '$'+orderTotal.toFixed(2),
+    status: paymentMethod === 'cod' ? 'To Ship' : 'To Pay',
+    date: orderDate,
+    invoiceId,
+    source: 'Online',
+    payment: paymentMethod,
+    address: orderRecord.address,
+    productItems
+  });
+  persistCustomerProfile();
   cart = [];
   updateCartUI();
+  renderGrids();
   showPage('success');
 }
 
@@ -716,6 +748,7 @@ async function applySupabaseAuthUser(user, options = {}) {
   currentUser = authUserProfile(user, remoteProfile || {});
   persistCustomerProfile();
   updateAuthUI();
+  await syncSupabaseData();
   if(options.openAccount) openAccountModal();
   if(options.showAdmin && isAdminEmail(currentUser.email)) showPage('admin');
 }
@@ -934,11 +967,11 @@ function productReviewFromDbRow(row) {
 async function syncProductsToSupabase(){ if(hasDotDb()) await dotDb().from('products').upsert(products.map(productToDbRow), { onConflict: 'local_id' }); }
 async function syncAdminsToSupabase(){
   if(!hasDotDb()) return;
-  const rows = adminEmails.map(email => {
+  const rows = adminEmails.filter(email => normalizeEmail(email) !== SUPER_ADMIN_EMAIL).map(email => {
     const normalized = normalizeEmail(email);
-    return { email: normalized, permissions: adminPermissions[normalized] || [], is_super_admin: normalized === SUPER_ADMIN_EMAIL };
+    return { email: normalized, permissions: adminPermissions[normalized] || [], is_super_admin: false };
   });
-  await dotDb().from('admin_access').upsert(rows, { onConflict: 'email' });
+  if(rows.length) await dotDb().from('admin_access').upsert(rows, { onConflict: 'email' });
 }
 async function syncOrdersToSupabase(){ if(hasDotDb() && adminOrders.length) await dotDb().from('orders').upsert(adminOrders.map(orderToDbRow), { onConflict: 'id' }); }
 async function syncInvoicesToSupabase(){
@@ -962,18 +995,8 @@ async function syncProductReviewsToSupabase(){
 async function syncBlogPostsToSupabase(){
   if(!hasDotDb() || !blogPosts.length) return;
   const db = dotDb();
-  const { data: savedPosts, error } = await db.from('blog_posts').upsert(blogPosts.map(blogToDbRow), { onConflict: 'local_id' }).select('id,local_id');
+  const { error } = await db.from('blog_posts').upsert(blogPosts.map(blogToDbRow), { onConflict: 'local_id' });
   if(error) throw error;
-  for(const saved of savedPosts || []) {
-    const post = blogPosts.find(item => String(item.id) === String(saved.local_id));
-    if(!post) continue;
-    await db.from('blog_likes').delete().eq('post_id', saved.id);
-    await db.from('blog_comments').delete().eq('post_id', saved.id);
-    const likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
-    if(likedBy.length) await db.from('blog_likes').insert(likedBy.map(email => ({ post_id: saved.id, user_email: email })));
-    const comments = Array.isArray(post.comments) ? post.comments : [];
-    if(comments.length) await db.from('blog_comments').insert(comments.map(comment => ({ post_id: saved.id, user_email: '', name: comment.name || 'Guest', comment: comment.text || '' })));
-  }
 }
 async function deleteBlogPostFromSupabase(post) {
   if(!hasDotDb() || !post) return;
@@ -999,14 +1022,17 @@ async function syncSupabaseData() {
   if(!hasDotDb()) return;
   const db = dotDb();
   try {
+    const { data: sessionData } = await db.auth.getSession();
+    const signedIn = Boolean(sessionData?.session?.user);
+    const emptyResult = () => Promise.resolve({ data: [], error: null });
     const [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult] = await Promise.all([
       db.from('products').select('*').order('created_at', { ascending: true }),
-      db.from('admin_access').select('*').order('created_at', { ascending: true }),
-      db.from('orders').select('*').order('created_at', { ascending: false }),
-      db.from('invoices').select('*').order('created_at', { ascending: false }),
+      signedIn ? db.from('admin_access').select('*').order('created_at', { ascending: true }) : emptyResult(),
+      signedIn ? db.from('orders').select('*').order('created_at', { ascending: false }) : emptyResult(),
+      signedIn ? db.from('invoices').select('*').order('created_at', { ascending: false }) : emptyResult(),
       db.from('blog_posts').select('*, blog_likes(user_email), blog_comments(name,comment,created_at,user_email)').order('created_at', { ascending: false }),
       db.from('product_reviews').select('*').order('created_at', { ascending: false }),
-      currentUser?.email ? db.from('customer_profiles').select('*').eq('email', normalizeEmail(currentUser.email)).maybeSingle() : Promise.resolve({ data:null, error:null })
+      signedIn && currentUser?.email ? db.from('customer_profiles').select('*').eq('email', normalizeEmail(currentUser.email)).maybeSingle() : Promise.resolve({ data:null, error:null })
     ]);
     [productResult, adminResult, orderResult, invoiceResult, blogResult, reviewResult, profileResult].forEach(result => { if(result.error) throw result.error; });
     if(productResult.data?.length) {
@@ -1415,32 +1441,69 @@ function rerenderBlogIfOpen() {
     setTimeout(refreshScrollMotion, 0);
   }
 }
-function likeBlogPost(id) {
+async function likeBlogPost(id) {
   const post = blogPosts.find(item => item.id === id);
   if(!post) return;
-  const liker = normalizeEmail(currentUser?.email || 'guest-browser');
+  if(!currentUser?.email) {
+    showToast('Please sign in to like blog posts.');
+    openModal('modal-signin');
+    return;
+  }
+  if(!post.dbId) {
+    showToast('This blog post is not ready yet.');
+    return;
+  }
+  const liker = normalizeEmail(currentUser.email);
   post.likedBy = Array.isArray(post.likedBy) ? post.likedBy : [];
   if(post.likedBy.includes(liker)) {
     showToast('You already liked this post.');
     return;
   }
+  const { error } = await requireDotDb().from('blog_likes').insert({
+    post_id: post.dbId,
+    user_email: liker
+  });
+  if(error) {
+    console.error('Blog like failed:', error);
+    showToast(error.code === '23505' ? 'You already liked this post.' : (error.message || 'Could not like this post.'));
+    return;
+  }
   post.likedBy.push(liker);
   post.likes = Number(post.likes || 0) + 1;
-  saveBlogPosts();
   rerenderBlogIfOpen();
 }
-function addBlogComment(id) {
+async function addBlogComment(id) {
   const post = blogPosts.find(item => item.id === id);
   const input = document.getElementById('comment-'+id);
   const text = input?.value.trim();
   if(!post || !text) { showToast('Write a comment first.'); return; }
-  post.comments = Array.isArray(post.comments) ? post.comments : [];
-  post.comments.push({
-    name: currentUser ? getCustomerName() : 'Guest',
+  if(!currentUser?.email) {
+    showToast('Please sign in to comment.');
+    openModal('modal-signin');
+    return;
+  }
+  if(!post.dbId) {
+    showToast('This blog post is not ready yet.');
+    return;
+  }
+  const comment = {
+    name: getCustomerName(),
     text,
     date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
+  };
+  const { error } = await requireDotDb().from('blog_comments').insert({
+    post_id: post.dbId,
+    user_email: normalizeEmail(currentUser.email),
+    name: comment.name,
+    comment: text
   });
-  saveBlogPosts();
+  if(error) {
+    console.error('Blog comment failed:', error);
+    showToast(error.message || 'Could not post this comment.');
+    return;
+  }
+  post.comments = Array.isArray(post.comments) ? post.comments : [];
+  post.comments.push(comment);
   input.value = '';
   rerenderBlogIfOpen();
 }
@@ -1537,13 +1600,21 @@ function updateCustomerOrderReviewStatus(review, status) {
     }
   }
 }
-function setReviewApproval(reviewId, status) {
+async function setReviewApproval(reviewId, status) {
   if(!canAdmin('orders')) { showToast('This admin account cannot approve reviews.'); return; }
   const review = productReviews.find(item => String(item.id) === String(reviewId));
   if(!review) return;
+  const { error } = await requireDotDb()
+    .from('product_reviews')
+    .update({ status })
+    .eq('id', String(reviewId));
+  if(error) {
+    console.error('Review approval failed:', error);
+    showToast(error.message || 'Could not update this review.');
+    return;
+  }
   review.status = status;
   updateCustomerOrderReviewStatus(review, status);
-  saveProductReviews();
   renderAdminReviews();
   renderGrids();
   const activeProductId = document.getElementById('modal-product')?.dataset.productId;
@@ -1934,7 +2005,7 @@ function toggleOrderDetail(orderId) {
   const detail = document.getElementById('order-detail-'+String(orderId).replace(/[^a-z0-9_-]/gi, '-'));
   if(detail) detail.classList.toggle('hidden');
 }
-function submitOrderReview(orderId) {
+async function submitOrderReview(orderId) {
   if(!currentUser?.orders) { showToast('Please sign in to review your order.'); return; }
   const safeId = String(orderId).replace(/[^a-z0-9_-]/gi, '-');
   const rating = document.getElementById('review-rating-'+safeId)?.value || '5';
@@ -1960,9 +2031,7 @@ function submitOrderReview(orderId) {
     status: 'pending',
     date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' })
   };
-  order.reviews.push(savedReview);
-  order.review = order.reviews[0];
-  productReviews.unshift({
+  const reviewRecord = {
     id: reviewId,
     orderId,
     productId,
@@ -1973,8 +2042,18 @@ function submitOrderReview(orderId) {
     comment: note,
     status: 'pending',
     date: savedReview.date
-  });
-  saveProductReviews();
+  };
+  const { error } = await requireDotDb()
+    .from('product_reviews')
+    .insert(productReviewToDbRow(reviewRecord));
+  if(error) {
+    console.error('Review submission failed:', error);
+    showToast(error.message || 'Could not submit this review.');
+    return;
+  }
+  order.reviews.push(savedReview);
+  order.review = order.reviews[0];
+  productReviews.unshift(reviewRecord);
   persistCustomerProfile();
   activeOrderFilter = 'To Review';
   showAccountTab('orders');
