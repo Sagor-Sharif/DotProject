@@ -26,6 +26,18 @@ let signupEmailSending = false;
 let activePageId = 'home';
 let isHistoryNavigation = false;
 
+function formatBDT(value) {
+  const amount = Number(value || 0);
+  return '৳' + Math.round(Number.isFinite(amount) ? amount : 0).toLocaleString('en-US');
+}
+function formatBDTText(value) {
+  return 'BDT ' + Math.round(Number(value || 0)).toLocaleString('en-US');
+}
+function formatStoredBDT(value) {
+  const amount = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
+  return formatBDT(Number.isFinite(amount) ? amount : 0);
+}
+
 function getNewProducts(){ return products.filter(p=>p.isNew); }
 function getTopProducts(){ return products.filter(p=>p.isTop); }
 
@@ -42,7 +54,7 @@ function renderProductCard(p) {
       <div class="product-name">${p.name}</div>
       <div class="product-desc">${p.desc.substring(0,80)}...</div>
       <div class="product-footer">
-        <div class="product-price">$${p.price} <span>USD</span></div>
+        <div class="product-price">${formatBDT(p.price)} <span>BDT</span></div>
         <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart(${p.id})">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
       </div>
     </div>
@@ -61,7 +73,7 @@ function renderAdminTable() {
   tb.innerHTML = products.map(p=>`<tr>
     <td><strong>${p.emoji} ${p.name}</strong></td>
     <td>${p.cat}</td>
-    <td>$${p.price}</td>
+    <td>${formatBDT(p.price)}</td>
     <td>10</td>
     <td><span class="status-badge status-active">Active</span></td>
     <td><button class="btn-outline-dark" style="padding:5px 12px;font-size:0.75rem">Edit</button></td>
@@ -123,7 +135,7 @@ function openProductModal(id) {
   document.getElementById('modal-product-img').style.fontSize = '8rem';
   document.getElementById('modal-product-cat').textContent = p.cat;
   document.getElementById('modal-product-name').textContent = p.name;
-  document.getElementById('modal-product-price').textContent = '$'+p.price+' USD';
+  document.getElementById('modal-product-price').textContent = formatBDT(p.price);
   document.getElementById('modal-product-desc').textContent = p.desc;
   document.getElementById('modal-product').dataset.productId = id;
   document.getElementById('modal-qty').value = 1;
@@ -178,7 +190,7 @@ function updateCartUI() {
   const total = cart.reduce((s,c)=>s+c.qty, 0);
   document.getElementById('cart-count').textContent = total;
   const totalPrice = cart.reduce((s,c)=>s+(c.price*c.qty), 0);
-  document.getElementById('cart-total-price').textContent = '$'+totalPrice.toFixed(2);
+  document.getElementById('cart-total-price').textContent = formatBDT(totalPrice);
   const body = document.getElementById('cart-body');
   if(cart.length === 0) {
     body.innerHTML = '<div class="cart-empty"><div class="empty-icon">🛒</div><p>Your cart is empty</p></div>';
@@ -188,7 +200,7 @@ function updateCartUI() {
       <div class="cart-item-info">
         <h5>${c.name}</h5>
         <p>Qty: ${c.qty}</p>
-        <div class="cart-item-price">$${(c.price*c.qty).toFixed(2)}</div>
+        <div class="cart-item-price">${formatBDT(c.price*c.qty)}</div>
       </div>
       <button class="cart-item-remove" onclick="removeFromCart(${c.id})">✕</button>
     </div>`).join('');
@@ -449,7 +461,7 @@ function invoicePdfBlob(invoice) {
   strokeColor(0.82,0.88,0.88); add('42 500 m 570 500 l S');
   let y = 478;
   itemRows.slice(0,8).forEach((item, index) => {
-    const rowAmount = index === itemRows.length - 1 ? '$' + total.toFixed(2) : '-';
+    const rowAmount = index === itemRows.length - 1 ? formatBDTText(total) : '-';
     const wrapped = wrapPdfText(item.name, 48).slice(0,2);
     color(0.18,0.18,0.18);
     wrapped.forEach((line, lineIndex) => text(line, 58, y - (lineIndex * 13), 10));
@@ -462,7 +474,7 @@ function invoicePdfBlob(invoice) {
 
   color(0.94,0.99,0.98); rect(360,304,210,48);
   color(0.04,0.05,0.05); text('Grand Total', 380, 326, 12, 'F2');
-  color(0.09,0.78,0.75); text('$' + total.toFixed(2), 486, 326, 16, 'F2');
+  color(0.09,0.78,0.75); text(formatBDTText(total), 474, 326, 14, 'F2');
 
   color(0.18,0.18,0.18); text('Thank you for ordering from DotProject.', 42, 270, 10);
   strokeColor(0.04,0.05,0.05); add('392 170 m 570 170 l S');
@@ -514,11 +526,11 @@ function renderCheckoutSummary() {
   } else {
     container.innerHTML = cart.map(c=>`<div class="summary-item">
       <span class="name">${c.emoji} ${c.name} ×${c.qty}</span>
-      <span class="price">$${(c.price*c.qty).toFixed(2)}</span>
+      <span class="price">${formatBDT(c.price*c.qty)}</span>
     </div>`).join('');
   }
-  document.getElementById('summary-subtotal').textContent = '$'+subtotal.toFixed(2);
-  document.getElementById('summary-total-price').textContent = '$'+subtotal.toFixed(2);
+  document.getElementById('summary-subtotal').textContent = formatBDT(subtotal);
+  document.getElementById('summary-total-price').textContent = formatBDT(subtotal);
 }
 
 async function placeOrder() {
@@ -609,7 +621,7 @@ async function placeOrder() {
   currentUser.orders.unshift({
     id: num,
     items: orderItems,
-    total: '$'+orderTotal.toFixed(2),
+    total: formatBDT(orderTotal),
     status: paymentMethod === 'cod' ? 'To Ship' : 'To Pay',
     date: orderDate,
     invoiceId,
@@ -1273,7 +1285,7 @@ function renderProductCard(p) {
       ${productReviewSummaryMarkup(p.id)}
       <div class="product-desc">${esc(p.desc).substring(0,80)}...</div>
       <div class="product-footer">
-        <div class="product-price">$${Number(p.price).toFixed(2)} <span>USD</span></div>
+        <div class="product-price">${formatBDT(p.price)} <span>BDT</span></div>
         <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart(${p.id})">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
       </div>
     </div>
@@ -1539,7 +1551,7 @@ function renderAdminTable() {
   tb.innerHTML = filtered.map(p=>`<tr>
     <td><span class="admin-thumb">${productVisual(p,'1rem')}</span><strong>${esc(p.name)}</strong></td>
     <td>${esc(p.cat)}</td>
-    <td>$${Number(p.price).toFixed(2)}</td>
+    <td>${formatBDT(p.price)}</td>
     <td>${Number(p.stock || 0)}</td>
     <td><span class="status-badge ${p.status === 'Active' ? 'status-active' : 'status-low'}">${esc(p.status || 'Active')}</span></td>
     <td><button class="btn-outline-dark ${canAdmin('editProduct') ? '' : 'admin-denied'}" style="padding:5px 12px;font-size:0.75rem" onclick="openEditProduct(${p.id})">Edit</button></td>
@@ -1584,7 +1596,7 @@ function renderAdminOrders() {
     <td><strong>#${esc(order.id)}</strong></td>
     <td>${esc(order.customer)}</td>
     <td>${esc(order.items)}</td>
-    <td>$${Number(order.total).toFixed(2)}</td>
+    <td>${formatBDT(order.total)}</td>
     <td>${esc(order.date)}</td>
     <td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
     <td><div class="order-row-actions"><select class="admin-inline-select ${canAdmin('orderStatus') ? '' : 'admin-denied'}" onchange="updateOrderStatus('${esc(order.id)}', this.value)">
@@ -1593,7 +1605,7 @@ function renderAdminOrders() {
   </tr>`).join('');
   if(table) table.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No orders found.</td></tr>';
   if(recent) recent.innerHTML = adminOrders.slice(0,4).map(order => `<tr>
-    <td>#${esc(order.id)}</td><td>${esc(order.customer)}</td><td>${esc(order.items)}</td><td>$${Number(order.total).toFixed(2)}</td><td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
+    <td>#${esc(order.id)}</td><td>${esc(order.customer)}</td><td>${esc(order.items)}</td><td>${formatBDT(order.total)}</td><td><span class="status-badge ${statusClass(order.status)}">${esc(order.status)}</span></td>
   </tr>`).join('');
   renderAdminReviews();
   labelDataTables();
@@ -1796,7 +1808,7 @@ function renderAdminDashboard() {
   const revenueEl = document.getElementById('admin-total-revenue');
   const ordersEl = document.getElementById('admin-total-orders');
   const pendingEl = document.getElementById('admin-pending-orders');
-  if(revenueEl) revenueEl.textContent = '$'+totalRevenue.toFixed(2);
+  if(revenueEl) revenueEl.textContent = formatBDT(totalRevenue);
   if(ordersEl) ordersEl.textContent = adminOrders.length;
   if(pendingEl) pendingEl.textContent = pendingCount;
 }
@@ -1877,7 +1889,7 @@ function openProductModal(id) {
   selectProductPhoto(0);
   document.getElementById('modal-product-cat').textContent = p.cat;
   document.getElementById('modal-product-name').textContent = p.name;
-  document.getElementById('modal-product-price').textContent = '$'+Number(p.price).toFixed(2)+' USD';
+  document.getElementById('modal-product-price').textContent = formatBDT(p.price);
   document.getElementById('modal-product-desc').textContent = getShortDescription(p);
   const fullDesc = document.getElementById('modal-product-full-desc');
   if(fullDesc) fullDesc.textContent = p.desc || getShortDescription(p);
@@ -1897,7 +1909,7 @@ function updateCartUI() {
   const total = cart.reduce((s,c)=>s+c.qty, 0);
   document.getElementById('cart-count').textContent = total;
   const totalPrice = cart.reduce((s,c)=>s+(c.price*c.qty), 0);
-  document.getElementById('cart-total-price').textContent = '$'+totalPrice.toFixed(2);
+  document.getElementById('cart-total-price').textContent = formatBDT(totalPrice);
   const body = document.getElementById('cart-body');
   if(cart.length === 0) {
     body.innerHTML = '<div class="cart-empty"><div class="empty-icon">Cart</div><p>Your cart is empty</p></div>';
@@ -1907,7 +1919,7 @@ function updateCartUI() {
       <div class="cart-item-info">
         <h5>${esc(c.name)}</h5>
         <p>Qty: ${c.qty}</p>
-        <div class="cart-item-price">$${(c.price*c.qty).toFixed(2)}</div>
+        <div class="cart-item-price">${formatBDT(c.price*c.qty)}</div>
       </div>
       <button class="cart-item-remove" onclick="removeFromCart(${c.id})">X</button>
     </div>`).join('');
@@ -1921,11 +1933,11 @@ function renderCheckoutSummary() {
   } else {
     container.innerHTML = cart.map(c=>`<div class="summary-item">
       <span class="name">${esc(c.name)} x${c.qty}</span>
-      <span class="price">$${(c.price*c.qty).toFixed(2)}</span>
+      <span class="price">${formatBDT(c.price*c.qty)}</span>
     </div>`).join('');
   }
-  document.getElementById('summary-subtotal').textContent = '$'+subtotal.toFixed(2);
-  document.getElementById('summary-total-price').textContent = '$'+subtotal.toFixed(2);
+  document.getElementById('summary-subtotal').textContent = formatBDT(subtotal);
+  document.getElementById('summary-total-price').textContent = formatBDT(subtotal);
 }
 function nameFromEmail(email) {
   return String(email || '').split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, ch => ch.toUpperCase()) || 'Customer';
@@ -2109,7 +2121,7 @@ function renderMyOrders() {
     <div class="order-list-row">
       <div>
         <strong>${esc(order.id)}</strong>
-        <small>${esc(order.date || 'Order history')} - ${esc(order.items)}${order.total ? ' - '+esc(order.total) : ''}</small>
+        <small>${esc(order.date || 'Order history')} - ${esc(order.items)}${order.total ? ' - '+formatStoredBDT(order.total) : ''}</small>
       </div>
       <div class="order-row-actions">
         <span class="status-badge status-active">${esc(order.status)}</span>
@@ -2118,7 +2130,7 @@ function renderMyOrders() {
       </div>
       <div class="order-detail-box hidden" id="${esc(detailId)}">
         Products: ${esc(order.items)}<br>
-        Total: ${esc(order.total || '$0.00')}<br>
+        Total: ${formatStoredBDT(order.total)}<br>
         Status: ${esc(order.status)}<br>
         Source: ${esc(order.source)}${order.payment ? '<br>Payment: '+esc(order.payment) : ''}
         ${reviewBlock}
@@ -2168,7 +2180,7 @@ function showAccountTab(tab, clickedButton) {
     panel.innerHTML = `<h3 style="margin-bottom:1rem">Shipping Address</h3><div class="form-group"><label>Address</label><textarea id="profile-shipping-address" rows="5" placeholder="House, road, area, city">${esc(currentUser.shippingAddress || '')}</textarea></div><button class="btn-primary" type="button" onclick="saveShippingAddress()">Save Address</button>`;
   }
   if(tab === 'cart') {
-    panel.innerHTML = `<h3 style="margin-bottom:1rem">Product Cart</h3><div class="account-empty">${cart.length ? cart.map(c => `${esc(c.name)} x${c.qty} - $${(c.price*c.qty).toFixed(2)}`).join('<br>') : 'Your product cart is empty.'}</div><button class="btn-outline-dark" style="margin-top:1rem" type="button" onclick="closeModal('modal-account');toggleCart()">Open Cart</button>`;
+    panel.innerHTML = `<h3 style="margin-bottom:1rem">Product Cart</h3><div class="account-empty">${cart.length ? cart.map(c => `${esc(c.name)} x${c.qty} - ${formatBDT(c.price*c.qty)}`).join('<br>') : 'Your product cart is empty.'}</div><button class="btn-outline-dark" style="margin-top:1rem" type="button" onclick="closeModal('modal-account');toggleCart()">Open Cart</button>`;
   }
 }
 async function readCustomerPhoto(input) {
@@ -2458,19 +2470,82 @@ function loadAdminForEdit(email) {
   });
   showToast('Loaded permissions for '+normalized+'.');
 }
-async function readProductPhoto(input, targetId) {
-  const file = input.files && input.files[0];
-  if(!file) return;
-  try {
-    showToast('Uploading product photo...');
-    const url = await uploadToSupabaseStorage(file, 'product-images', 'products');
-    document.getElementById(targetId).value = url;
-    showToast('Product photo uploaded.');
-  } catch (error) {
-    console.error('Product photo upload failed:', error);
-    showToast('Product photo upload failed. Check Supabase Storage.');
-    input.value = '';
+function renderProductPhotoPreviews(targetId, previewId, primaryId, pendingUrls = []) {
+  const target = document.getElementById(targetId);
+  const preview = document.getElementById(previewId);
+  if(!target || !preview) return;
+  const savedUrls = [...new Set(photoListFrom(target.value))];
+  if(primaryId) {
+    const primary = document.getElementById(primaryId);
+    if(primary) primary.value = savedUrls[0] || '';
   }
+  preview.innerHTML = [
+    ...savedUrls.map((url, index) => `
+      <div class="product-upload-preview-item">
+        <img src="${esc(url)}" alt="Product image ${index + 1}">
+        <button type="button" title="Remove image" aria-label="Remove image" onclick="removeProductPhoto('${esc(targetId)}','${esc(previewId)}','${esc(primaryId || '')}',${index})">X</button>
+      </div>
+    `),
+    ...pendingUrls.map((url, index) => `
+      <div class="product-upload-preview-item uploading">
+        <img src="${esc(url)}" alt="Uploading product image ${savedUrls.length + index + 1}">
+      </div>
+    `)
+  ].join('');
+}
+function removeProductPhoto(targetId, previewId, primaryId, index) {
+  const target = document.getElementById(targetId);
+  if(!target) return;
+  const urls = photoListFrom(target.value);
+  urls.splice(index, 1);
+  target.value = urls.join(',');
+  renderProductPhotoPreviews(targetId, previewId, primaryId);
+}
+async function readProductPhotos(input, targetId, previewId, primaryId = '') {
+  const selectedFiles = Array.from(input.files || []);
+  if(!selectedFiles.length) return;
+  const validFiles = selectedFiles.filter(file => {
+    if(!['image/png','image/jpeg','image/webp'].includes(file.type)) {
+      showToast(file.name+' is not a supported image.');
+      return false;
+    }
+    if(file.size > 10 * 1024 * 1024) {
+      showToast(file.name+' is larger than 10MB.');
+      return false;
+    }
+    return true;
+  });
+  if(!validFiles.length) {
+    if('value' in input) input.value = '';
+    return;
+  }
+  const pendingUrls = validFiles.map(file => URL.createObjectURL(file));
+  renderProductPhotoPreviews(targetId, previewId, primaryId, pendingUrls);
+  showToast('Uploading '+validFiles.length+' product image'+(validFiles.length > 1 ? 's' : '')+'...');
+  const uploads = await Promise.allSettled(
+    validFiles.map(file => uploadToSupabaseStorage(file, 'product-images', 'products'))
+  );
+  pendingUrls.forEach(url => URL.revokeObjectURL(url));
+  const uploadedUrls = uploads
+    .filter(result => result.status === 'fulfilled' && result.value)
+    .map(result => result.value);
+  const failedCount = uploads.length - uploadedUrls.length;
+  const target = document.getElementById(targetId);
+  if(target && uploadedUrls.length) {
+    target.value = [...new Set([...photoListFrom(target.value), ...uploadedUrls])].join(',');
+  }
+  renderProductPhotoPreviews(targetId, previewId, primaryId);
+  if('value' in input) input.value = '';
+  if(uploadedUrls.length) showToast(uploadedUrls.length+' product image'+(uploadedUrls.length > 1 ? 's' : '')+' uploaded.');
+  if(failedCount) {
+    console.error('Product image uploads failed:', uploads.filter(result => result.status === 'rejected'));
+    showToast(failedCount+' image upload'+(failedCount > 1 ? 's' : '')+' failed.');
+  }
+}
+function handleProductPhotoDrop(event, targetId, previewId, primaryId = '') {
+  event.preventDefault();
+  event.stopPropagation();
+  readProductPhotos({ files: event.dataTransfer?.files || [] }, targetId, previewId, primaryId);
 }
 function openEditProduct(id) {
   if(!canAdmin('editProduct')) { showToast('This admin account cannot edit products.'); return; }
@@ -2482,7 +2557,10 @@ function openEditProduct(id) {
   document.getElementById('edit-cat').value = p.cat;
   document.getElementById('edit-stock').value = p.stock || 0;
   document.getElementById('edit-desc').value = p.desc;
-  document.getElementById('edit-photo').value = p.photo || '';
+  const photos = [...new Set([...photoListFrom(p.photos), ...photoListFrom(p.photo)])];
+  document.getElementById('edit-photos').value = photos.join(',');
+  document.getElementById('edit-photo').value = photos[0] || '';
+  renderProductPhotoPreviews('edit-photos', 'edit-photo-preview', 'edit-photo');
   document.getElementById('edit-is-new').checked = !!p.isNew;
   document.getElementById('edit-is-top').checked = !!p.isTop;
   document.getElementById('edit-status').value = p.status || 'Active';
@@ -2498,7 +2576,8 @@ function saveProductEdit() {
   p.cat = document.getElementById('edit-cat').value;
   p.stock = parseInt(document.getElementById('edit-stock').value) || 0;
   p.desc = document.getElementById('edit-desc').value.trim();
-  p.photo = document.getElementById('edit-photo').value.trim();
+  p.photos = photoListFrom(document.getElementById('edit-photos').value);
+  p.photo = p.photos[0] || document.getElementById('edit-photo').value.trim();
   p.isNew = document.getElementById('edit-is-new').checked;
   p.isTop = document.getElementById('edit-is-top').checked;
   p.status = document.getElementById('edit-status').value;
@@ -2516,14 +2595,16 @@ function adminAddProduct() {
   const cat = document.getElementById('ap-cat').value;
   const emoji = document.getElementById('preview-emoji').textContent || '3D';
   const stock = parseInt(document.getElementById('ap-stock').value) || 24;
-  const photo = document.getElementById('ap-photo-urls').value.trim() || document.getElementById('ap-photo').value;
+  const photos = photoListFrom(document.getElementById('ap-photo-urls').value);
+  const photo = photos[0] || document.getElementById('ap-photo').value;
   const status = document.getElementById('ap-status').value;
   if(!name || !desc || !price) { showToast('Please fill all required fields.'); return; }
-  products.push({ id: Date.now(), name, cat, price, emoji, photo, desc, stock, status, isNew:true, isTop:false });
+  products.push({ id: Date.now(), name, cat, price, emoji, photo, photos, desc, stock, status, isNew:true, isTop:false });
   saveProducts();
   renderGrids();
   showToast('Product "'+name+'" published!');
   ['ap-name','ap-desc','ap-price','ap-stock','ap-photo','ap-photo-urls'].forEach(id => document.getElementById(id).value='');
+  renderProductPhotoPreviews('ap-photo-urls', 'ap-photo-preview', 'ap-photo');
 }
 function updateProductStock(id) {
   if(!canAdmin('stock')) { showToast('This admin account cannot update stock.'); return; }

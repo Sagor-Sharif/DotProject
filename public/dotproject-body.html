@@ -43,7 +43,7 @@
   <div class="cart-footer">
     <div class="cart-total">
       <h4>Total</h4>
-      <span id="cart-total-price">$0.00</span>
+      <span id="cart-total-price">৳0</span>
     </div>
     <button class="btn-primary btn-full" onclick="goToCheckout()">Proceed to Checkout →</button>
   </div>
@@ -221,7 +221,7 @@
     <input type="hidden" id="edit-product-id">
     <div class="form-row">
       <div class="form-group"><label>Product Title</label><input type="text" id="edit-name"></div>
-      <div class="form-group"><label>Price (USD)</label><input type="number" id="edit-price" min="0" step="0.01"></div>
+      <div class="form-group"><label>Price (BDT)</label><input type="number" id="edit-price" min="0" step="1"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Category</label>
@@ -236,7 +236,13 @@
     </div>
     <div class="form-group"><label>Description</label><textarea rows="4" id="edit-desc"></textarea></div>
     <div class="form-row">
-      <div class="form-group"><label>Photo</label><input type="hidden" id="edit-photo"><input type="file" id="edit-photo-file" accept="image/*" onchange="readProductPhoto(this,'edit-photo')"></div>
+      <div class="form-group">
+        <label>Product Images</label>
+        <input type="hidden" id="edit-photo">
+        <input type="hidden" id="edit-photos">
+        <input type="file" id="edit-photo-file" accept="image/png,image/jpeg,image/webp" multiple onchange="readProductPhotos(this,'edit-photos','edit-photo-preview','edit-photo')">
+        <div class="product-upload-preview" id="edit-photo-preview"></div>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-check"><input type="checkbox" id="edit-is-new"><label for="edit-is-new">Show as New Arrival</label></div>
@@ -285,15 +291,15 @@
     </div>
     <div class="hero-visual">
       <div class="hero-card featured">
-        <div class="hero-card-img">🐱<span class="price-tag">$49</span></div>
+        <div class="hero-card-img">🐱<span class="price-tag">৳4,990</span></div>
         <div class="hero-card-info"><h4>Auto Cat Feeder</h4><p>Smart 3D-printed body + auto mechanism</p></div>
       </div>
       <div class="hero-card">
-        <div class="hero-card-img" style="height:120px">🔑<span class="price-tag">$8</span></div>
+        <div class="hero-card-img" style="height:120px">🔑<span class="price-tag">৳790</span></div>
         <div class="hero-card-info"><h4>Custom Keyring</h4><p>Your name or logo</p></div>
       </div>
       <div class="hero-card">
-        <div class="hero-card-img" style="height:120px">🐠<span class="price-tag">$35</span></div>
+        <div class="hero-card-img" style="height:120px">🐠<span class="price-tag">৳3,490</span></div>
         <div class="hero-card-info"><h4>Fish Auto Feeder</h4><p>Aquarium smart system</p></div>
       </div>
     </div>
@@ -555,9 +561,9 @@
         <h3>Order Summary</h3>
         <div id="checkout-summary-items"></div>
         <div style="border-top:1px solid var(--border);margin-top:1rem;padding-top:1rem">
-          <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:6px 0"><span style="color:var(--text-muted)">Subtotal</span><span id="summary-subtotal">$0.00</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:6px 0"><span style="color:var(--text-muted)">Subtotal</span><span id="summary-subtotal">৳0</span></div>
           <div style="display:flex;justify-content:space-between;font-size:0.875rem;padding:6px 0"><span style="color:var(--text-muted)">Shipping</span><span style="color:#22c55e">Free</span></div>
-          <div class="summary-total"><span>Total</span><span id="summary-total-price">$0.00</span></div>
+          <div class="summary-total"><span>Total</span><span id="summary-total-price">৳0</span></div>
         </div>
         <div style="margin-top:1rem;padding:12px;background:rgba(72,209,204,0.06);border-radius:var(--radius-sm);border:1px solid rgba(72,209,204,0.2);font-size:0.8rem;color:var(--turquoise-xdark)">
           🔒 Secure checkout — your data is encrypted and protected.
@@ -611,7 +617,7 @@
         <h2>Dashboard</h2>
         <p class="sub">Overview of your store performance</p>
         <div class="admin-stats">
-          <div class="admin-stat"><div class="s-label">Total Revenue</div><div class="s-val" id="admin-total-revenue">$0</div><div class="s-change">Demo order value</div></div>
+          <div class="admin-stat"><div class="s-label">Total Revenue</div><div class="s-val" id="admin-total-revenue">৳0</div><div class="s-change">Order value</div></div>
           <div class="admin-stat"><div class="s-label">Total Orders</div><div class="s-val" id="admin-total-orders">0</div><div class="s-change">All order statuses</div></div>
           <div class="admin-stat"><div class="s-label">Products</div><div class="s-val" id="admin-product-count">0</div><div class="s-change">Live catalog</div></div>
           <div class="admin-stat"><div class="s-label">Pending</div><div class="s-val" id="admin-pending-orders">0</div><div class="s-change">Needs review</div></div>
@@ -663,7 +669,7 @@
                     <option>Custom Order</option>
                   </select>
                 </div>
-                <div class="form-group"><label>Price (USD)</label><input type="number" placeholder="0.00" id="ap-price"></div>
+                <div class="form-group"><label>Price (BDT)</label><input type="number" min="0" step="1" placeholder="4990" id="ap-price"></div>
               </div>
               <div class="form-row">
                 <div class="form-group"><label>Print Material</label>
@@ -687,12 +693,13 @@
               <h4>Product Images</h4>
               <input type="hidden" id="ap-photo-urls">
               <input type="hidden" id="ap-photo">
-              <input type="file" id="ap-photo-file" accept="image/*" style="display:none" onchange="readProductPhoto(this,'ap-photo')">
-              <div class="upload-zone" onclick="document.getElementById('ap-photo-file').click()">
+              <input type="file" id="ap-photo-file" accept="image/png,image/jpeg,image/webp" multiple style="display:none" onchange="readProductPhotos(this,'ap-photo-urls','ap-photo-preview','ap-photo')">
+              <div class="upload-zone" onclick="document.getElementById('ap-photo-file').click()" ondragover="event.preventDefault()" ondrop="handleProductPhotoDrop(event,'ap-photo-urls','ap-photo-preview','ap-photo')">
                 <div class="icon">📸</div>
-                <p><strong>Click to upload</strong> or drag & drop</p>
-                <p style="font-size:0.8rem;margin-top:6px;color:var(--text-light)">PNG, JPG, WEBP — up to 10MB</p>
+                <p><strong>Click to upload</strong> or drag & drop multiple images</p>
+                <p style="font-size:0.8rem;margin-top:6px;color:var(--text-light)">PNG, JPG, WEBP — up to 10MB each</p>
               </div>
+              <div class="product-upload-preview" id="ap-photo-preview"></div>
             </div>
 
             <div class="form-section" style="margin-bottom:1rem">
@@ -763,7 +770,7 @@
           </div>
           <div class="form-group"><label>Products</label><input type="text" id="manual-invoice-items" placeholder="Auto Cat Feeder x1, Custom Keyring x2"></div>
           <div class="form-row">
-            <div class="form-group"><label>Total (USD)</label><input type="number" id="manual-invoice-total" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="form-group"><label>Total (BDT)</label><input type="number" id="manual-invoice-total" min="0" step="1" placeholder="0"></div>
             <div class="form-group"><label>Status</label><select id="manual-invoice-status"><option>Pending</option><option>To Pay</option><option>In Process</option><option>Shipped</option><option>Delivered</option></select></div>
           </div>
           <button class="btn-primary" type="button" onclick="createManualInvoice()">Create Invoice</button>
