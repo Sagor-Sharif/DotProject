@@ -37,6 +37,25 @@ function formatStoredBDT(value) {
   const amount = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
   return formatBDT(Number.isFinite(amount) ? amount : 0);
 }
+function productIdToken(value) {
+  return encodeURIComponent(String(value ?? ''));
+}
+function productIdValue(value) {
+  try {
+    return decodeURIComponent(String(value ?? ''));
+  } catch (error) {
+    return String(value ?? '');
+  }
+}
+function sameProductId(left, right) {
+  return String(left ?? '') === productIdValue(right);
+}
+function findProductById(id) {
+  return products.find(product => sameProductId(product.id, id));
+}
+function findCartItemById(id) {
+  return cart.find(item => sameProductId(item.id, id));
+}
 
 function getNewProducts(){ return products.filter(p=>p.isNew); }
 function getTopProducts(){ return products.filter(p=>p.isTop); }
@@ -44,7 +63,7 @@ function getTopProducts(){ return products.filter(p=>p.isTop); }
 function renderProductCard(p) {
   const stock = Number(p.stock ?? 24);
   const isAvailable = stock > 0 && p.status !== 'Out of Stock';
-  return `<div class="product-card" onclick="openProductModal(${p.id})">
+  return `<div class="product-card" onclick="openProductModal('${productIdToken(p.id)}')">
     <div class="product-img">
       ${p.isNew ? '<span class="product-badge-new">NEW</span>' : p.isTop ? '<span class="product-badge-hot">🔥 HOT</span>' : ''}
       <span style="font-size:4rem">${p.emoji}</span>
@@ -55,7 +74,7 @@ function renderProductCard(p) {
       <div class="product-desc">${p.desc.substring(0,80)}...</div>
       <div class="product-footer">
         <div class="product-price">${formatBDT(p.price)} <span>BDT</span></div>
-        <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart(${p.id})">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
+        <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart('${productIdToken(p.id)}')">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
       </div>
     </div>
   </div>`;
@@ -129,7 +148,7 @@ function closeModal(id){ document.getElementById(id)?.classList.remove('open'); 
 function closeAllModals(){ document.querySelectorAll('.modal-page').forEach(m=>m.classList.remove('open')); }
 
 function openProductModal(id) {
-  const p = products.find(x=>x.id===id);
+  const p = findProductById(id);
   if(!p) return;
   document.getElementById('modal-product-img').textContent = p.emoji;
   document.getElementById('modal-product-img').style.fontSize = '8rem';
@@ -152,11 +171,11 @@ function changeQty(delta) {
 
 // ================== CART ==================
 function addToCart(id) {
-  const p = products.find(x=>x.id===id);
+  const p = findProductById(id);
   if(!p) return;
   const stock = Number(p.stock ?? 24);
   if(stock <= 0 || p.status === 'Out of Stock') { showToast('This product is out of stock.'); return; }
-  const existing = cart.find(c=>c.id===id);
+  const existing = findCartItemById(id);
   if(existing) {
     if(existing.qty >= stock) { showToast('Only '+stock+' item(s) available in stock.'); return; }
     existing.qty++;
@@ -166,14 +185,14 @@ function addToCart(id) {
 }
 
 function addToCartFromModal() {
-  const id = parseInt(document.getElementById('modal-product').dataset.productId);
+  const id = document.getElementById('modal-product').dataset.productId;
   const qty = parseInt(document.getElementById('modal-qty').value);
-  const p = products.find(x=>x.id===id);
+  const p = findProductById(id);
   if(!p) return;
   const stock = Number(p.stock ?? 24);
   if(stock <= 0 || p.status === 'Out of Stock') { showToast('This product is out of stock.'); return; }
   if(qty > stock) { showToast('Only '+stock+' item(s) available in stock.'); return; }
-  const existing = cart.find(c=>c.id===id);
+  const existing = findCartItemById(id);
   if(existing) existing.qty += qty;
   else cart.push({...p, qty});
   updateCartUI();
@@ -182,7 +201,7 @@ function addToCartFromModal() {
 }
 
 function removeFromCart(id) {
-  cart = cart.filter(c=>c.id!==id);
+  cart = cart.filter(item => !sameProductId(item.id, id));
   updateCartUI();
 }
 
@@ -202,7 +221,7 @@ function updateCartUI() {
         <p>Qty: ${c.qty}</p>
         <div class="cart-item-price">${formatBDT(c.price*c.qty)}</div>
       </div>
-      <button class="cart-item-remove" onclick="removeFromCart(${c.id})">✕</button>
+      <button class="cart-item-remove" onclick="removeFromCart('${productIdToken(c.id)}')">✕</button>
     </div>`).join('');
   }
 }
@@ -606,7 +625,7 @@ async function placeOrder() {
   orderRecord.invoiceId = invoiceId;
   adminOrders.unshift({...orderRecord, date: new Date().toLocaleDateString('en-US', { month:'short', day:'2-digit' })});
   cart.forEach(item => {
-    const product = products.find(product => product.id === item.id);
+    const product = findProductById(item.id);
     if(product) {
       product.stock = Math.max(0, Number(product.stock || 0) - Number(item.qty || 0));
       product.sold = Number(product.sold || 0) + Number(item.qty || 0);
@@ -1274,7 +1293,7 @@ function selectProductPhoto(index) {
 function renderProductCard(p) {
   const stock = Number(p.stock ?? 24);
   const isAvailable = stock > 0 && p.status !== 'Out of Stock';
-  return `<div class="product-card" onclick="openProductModal(${p.id})">
+  return `<div class="product-card" onclick="openProductModal('${productIdToken(p.id)}')">
     <div class="product-img">
       ${p.isNew ? '<span class="product-badge-new">NEW</span>' : p.isTop ? '<span class="product-badge-hot">HOT</span>' : ''}
       ${productVisual(p)}
@@ -1286,7 +1305,7 @@ function renderProductCard(p) {
       <div class="product-desc">${esc(p.desc).substring(0,80)}...</div>
       <div class="product-footer">
         <div class="product-price">${formatBDT(p.price)} <span>BDT</span></div>
-        <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart(${p.id})">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
+        <button class="btn-add-cart" ${isAvailable ? '' : 'disabled'} onclick="event.stopPropagation();addToCart('${productIdToken(p.id)}')">${isAvailable ? 'Add to Cart' : 'Out of Stock'}</button>
       </div>
     </div>
   </div>`;
@@ -1554,7 +1573,7 @@ function renderAdminTable() {
     <td>${formatBDT(p.price)}</td>
     <td>${Number(p.stock || 0)}</td>
     <td><span class="status-badge ${p.status === 'Active' ? 'status-active' : 'status-low'}">${esc(p.status || 'Active')}</span></td>
-    <td><button class="btn-outline-dark ${canAdmin('editProduct') ? '' : 'admin-denied'}" style="padding:5px 12px;font-size:0.75rem" onclick="openEditProduct(${p.id})">Edit</button></td>
+    <td><button class="btn-outline-dark ${canAdmin('editProduct') ? '' : 'admin-denied'}" style="padding:5px 12px;font-size:0.75rem" onclick="openEditProduct('${productIdToken(p.id)}')">Edit</button></td>
   </tr>`).join('');
   renderStockTable();
   renderAdminDashboard();
@@ -1578,7 +1597,7 @@ function renderStockTable() {
       <td>${esc(p.cat)}</td>
       <td>${stock}</td>
       <td><span class="status-badge ${stock <= 5 ? 'status-low' : 'status-active'}">${stockStatus}</span></td>
-      <td><div class="admin-row-actions"><input class="admin-inline-input" type="number" min="0" id="stock-${p.id}" value="${stock}"><button class="btn-outline-dark ${canAdmin('stock') ? '' : 'admin-denied'}" style="padding:6px 10px;font-size:0.75rem" onclick="updateProductStock(${p.id})">Save</button></div></td>
+      <td><div class="admin-row-actions"><input class="admin-inline-input" type="number" min="0" id="stock-${productIdToken(p.id)}" value="${stock}"><button class="btn-outline-dark ${canAdmin('stock') ? '' : 'admin-denied'}" style="padding:6px 10px;font-size:0.75rem" onclick="updateProductStock('${productIdToken(p.id)}')">Save</button></div></td>
     </tr>`;
   }).join('');
   labelDataTables();
@@ -1877,7 +1896,7 @@ function showPage(id, options = {}) {
 }
 function scrollToShop() { showPage('shop'); }
 function openProductModal(id) {
-  const p = products.find(x=>x.id===id);
+  const p = findProductById(id);
   if(!p) return;
   const gallery = getProductGallery(p);
   document.getElementById('modal-product').dataset.gallery = JSON.stringify(gallery);
@@ -1921,7 +1940,7 @@ function updateCartUI() {
         <p>Qty: ${c.qty}</p>
         <div class="cart-item-price">${formatBDT(c.price*c.qty)}</div>
       </div>
-      <button class="cart-item-remove" onclick="removeFromCart(${c.id})">X</button>
+      <button class="cart-item-remove" onclick="removeFromCart('${productIdToken(c.id)}')">X</button>
     </div>`).join('');
   }
 }
@@ -2549,7 +2568,7 @@ function handleProductPhotoDrop(event, targetId, previewId, primaryId = '') {
 }
 function openEditProduct(id) {
   if(!canAdmin('editProduct')) { showToast('This admin account cannot edit products.'); return; }
-  const p = products.find(x=>x.id===id);
+  const p = findProductById(id);
   if(!p) return;
   document.getElementById('edit-product-id').value = p.id;
   document.getElementById('edit-name').value = p.name;
@@ -2568,8 +2587,8 @@ function openEditProduct(id) {
 }
 function saveProductEdit() {
   if(!canAdmin('editProduct')) { showToast('This admin account cannot save product edits.'); return; }
-  const id = parseInt(document.getElementById('edit-product-id').value);
-  const p = products.find(x=>x.id===id);
+  const id = document.getElementById('edit-product-id').value;
+  const p = findProductById(id);
   if(!p) return;
   p.name = document.getElementById('edit-name').value.trim();
   p.price = parseFloat(document.getElementById('edit-price').value) || 0;
@@ -2608,9 +2627,9 @@ function adminAddProduct() {
 }
 function updateProductStock(id) {
   if(!canAdmin('stock')) { showToast('This admin account cannot update stock.'); return; }
-  const product = products.find(p => p.id === id);
+  const product = findProductById(id);
   if(!product) return;
-  const nextStock = parseInt(document.getElementById('stock-'+id)?.value) || 0;
+  const nextStock = parseInt(document.getElementById('stock-'+productIdToken(id))?.value) || 0;
   product.stock = Math.max(0, nextStock);
   product.status = product.stock <= 0 ? 'Out of Stock' : 'Active';
   saveProducts();
