@@ -2,14 +2,18 @@
 
 ## Redirect URLs
 
-In Supabase, open Authentication > URL Configuration and set:
+The hosted project is configured for:
 
-- Site URL: your deployed site URL, for example `https://your-project.vercel.app`
+- Site URL: `https://dot-project-drab.vercel.app`
 - Redirect URLs:
-  - `http://localhost:3000`
-  - `http://localhost:3000/`
-  - your Vercel production URL
-  - your Vercel production URL with trailing slash
+  - `https://dot-project-drab.vercel.app/auth/callback`
+  - `https://dot-project-drab.vercel.app/auth/reset-password`
+  - `http://localhost:3000/**`
+  - `https://dot-project-*.vercel.app/**`
+
+Auth email links are validated by `/auth/callback`. Valid recovery and invite
+sessions continue to `/auth/reset-password`; other successful flows continue to
+`/auth/result`.
 
 ## Gmail SMTP
 
@@ -40,13 +44,14 @@ The storefront uses Supabase Auth for:
 
 In Supabase, open Authentication > Emails > Confirm signup.
 
-Make sure the email body includes the token, for example:
+The confirmation email includes both a code and a secure link:
 
 ```html
-Your DotProject verification code is: {{ .Token }}
+<p>Your DotProject verification code is: <strong>{{ .Token }}</strong></p>
+<p><a href="{{ .ConfirmationURL }}">Confirm email address</a></p>
 ```
 
-The app asks the user to enter this code after signup.
+The user can enter the code in the signup form or follow the confirmation link.
 
 Run `supabase-schema.sql` after pulling this change so:
 

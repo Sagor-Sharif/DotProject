@@ -723,8 +723,10 @@ async function uploadToSupabaseStorage(file, bucket, folder) {
   const { data } = db.storage.from(bucket).getPublicUrl(path);
   return data?.publicUrl || '';
 }
-function authRedirectUrl() {
-  return window.location.origin + window.location.pathname;
+function authRedirectUrl(flow = 'authenticated') {
+  const url = new URL('/auth/callback', window.location.origin);
+  url.searchParams.set('flow', flow);
+  return url.toString();
 }
 function authUserProfile(user, fallback = {}) {
   const metadata = user?.user_metadata || {};
@@ -775,7 +777,9 @@ async function initSupabaseAuth() {
     }
     if(event === 'PASSWORD_RECOVERY') {
       if(session?.user) applySupabaseAuthUser(session.user);
-      openResetPassword(true);
+      if(!window.location.pathname.startsWith('/auth/reset-password')) {
+        window.location.assign('/auth/reset-password?flow=recovery');
+      }
       return;
     }
     if(session?.user) applySupabaseAuthUser(session.user);
@@ -2260,7 +2264,7 @@ async function handleSignup() {
     email,
     password,
     options: {
-      emailRedirectTo: authRedirectUrl(),
+      emailRedirectTo: authRedirectUrl('signup'),
       data: {
         firstName: profile.firstName,
         lastName: profile.lastName,
@@ -2274,7 +2278,7 @@ async function handleSignup() {
       const resend = await auth.resend({
         type: 'signup',
         email,
-        options: { emailRedirectTo: authRedirectUrl() }
+        options: { emailRedirectTo: authRedirectUrl('signup') }
       });
       setSignupSending(false);
       if(resend.error) {
@@ -2343,7 +2347,7 @@ async function sendMagicLink() {
   if(!email) { showToast('Enter your email first.'); return; }
   const { error } = await auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: authRedirectUrl() }
+    options: { emailRedirectTo: authRedirectUrl('magiclink') }
   });
   if(error) {
     console.error('Supabase magic link failed:', error);
@@ -2367,7 +2371,7 @@ async function sendResetCode() {
   const email = normalizeEmail(document.getElementById('reset-email').value);
   if(!isGmail(email)) { showToast('Please enter a valid Gmail address.'); return; }
   resetEmail = email;
-  const { error } = await auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl() });
+  const { error } = await auth.resetPasswordForEmail(email, { redirectTo: authRedirectUrl('recovery') });
   if(error) {
     console.error('Supabase password reset failed:', error);
     showToast(error.message || 'Could not send reset email.');
